@@ -1,0 +1,12 @@
+build
+data
+
+*~
+~*
+\#*
+
+*.dat
+*.o
+*.mod
+*.out
+*.exe
