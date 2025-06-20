@@ -28,7 +28,7 @@ contains
        read(*,'(a)') inputfilename
        print*, 'Enter input parameters file: ', trim(inputfilename)
        read(*,'(a)') outputfilename
-       print*, 'Enter output parameters file: ', trim(outputfilename)
+       print*, 'Enter output file: ', trim(outputfilename)
        open(newunit = inunit,file = trim(inputfilename), status = 'old', action = "read")
        read(inunit, nml = parametersfile)
        write(*,nml = parametersfile)

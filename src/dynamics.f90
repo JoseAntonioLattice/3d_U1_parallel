@@ -4,7 +4,10 @@ module dynamics
   use lua
   implicit none
 
-  integer(i4) :: left,right, up, down, back, front, corner(8)
+  integer(i4) :: left,right, up, down, back, front, corner(8), a(3)
+  integer(i4) ::left_front, left_back, right_back,right_front,right_up, right_down, &
+       left_up, left_down, front_down, front_up, back_down, back_up
+  integer(i4), dimension(:), allocatable :: ip1, im1, ip2, im2, ip3, im3
 contains
 
   subroutine cold_start(u)
@@ -18,8 +21,8 @@ contains
     real(dp), intent(inout), allocatable, dimension(:) :: plq[:], beta
     integer(i4), intent(in) :: N_measurements, Nbeta
     real(dp) :: betai, betaf
-    integer(i4), dimension(:), allocatable :: ip1, im1, ip2, im2, ip3, im3
-    integer(i4) :: i, a(3)
+    
+    integer(i4) :: i
 
     Lx = L(1)/d(1)
     Ly = L(2)/d(2)
@@ -47,6 +50,19 @@ contains
     down = get_index([a(1),a(2),im3(a(3))],3,d)
     front= get_index([a(1),im2(a(2)),a(3)],3,d)
     back = get_index([a(1),ip2(a(2)),a(3)],3,d)
+
+    left_front = get_index([im1(a(1)),im2(a(2)),a(3)],3,d)
+    left_back = get_index([im1(a(1)),ip2(a(2)),a(3)],3,d)
+    right_back = get_index([ip1(a(1)),ip2(a(2)),a(3)],3,d)
+    right_front = get_index([ip1(a(1)),im2(a(2)),a(3)],3,d)    
+    right_up = get_index([ip1(a(1)),a(2),ip3(a(3))],3,d)
+    right_down = get_index([ip1(a(1)),a(2),im3(a(3))],3,d)
+    left_up = get_index([im1(a(1)),a(2),ip3(a(3))],3,d)
+    left_down = get_index([im1(a(1)),a(2),im3(a(3))],3,d)
+    front_down = get_index([a(1),im2(a(2)),im3(a(3))],3,d)
+    front_up = get_index([a(1),im2(a(2)),ip3(a(3))],3,d)
+    back_down = get_index([a(1),ip2(a(2)),im3(a(3))],3,d)
+    back_up = get_index([a(1),ip2(a(2)),ip3(a(3))],3,d)
 
     print*, this_image(), left, right, back, front, up, down
     
@@ -123,6 +139,42 @@ contains
     end do
     u(:,2:Lx-1,2:Ly-1,Lz+1)[down] = u(:,2:Lx-1,2:Ly-1,1)
     sync all
+    do x = 2, Lx-1
+       do mu = 1, 3
+          call metropolis(u,[x,1,1],mu,beta)
+       end do
+    end do
+    u(:,2:Lx-1,1,Lz+1)[down] = u(:,2:Lx-1,1,1)
+    u(:,2:Lx-1,Ly+1,1)[front] = u(:,2:Lx-1,1,1)
+    u(:,2:Lx-1,Ly+1,Lz+1)[front_down] = u(:,2:Lx-1,1,1)
+    sync all
+    do x = 2, Lx-1
+       do mu = 1, 3
+          call metropolis(u,[x,Ly,1],mu,beta)
+       end do
+    end do
+    u(:,2:Lx-1,Ly,Lz+1)[down] = u(:,2:Lx-1,Ly,1)
+    u(:,2:Lx-1,0,1)[back]     = u(:,2:Lx-1,Ly,1)
+    u(:,2:Lx-1,0,Lz+1)[back_down] = u(:,2:Lx-1,1,1)
+    sync all
+    do y = 2, Ly-1
+       do mu = 1, 3
+          call metropolis(u,[1,y,1],mu,beta)
+       end do
+    end do
+    u(:,1,2:Ly-1,Lz+1)[down] = u(:,1,2:Ly-1,1)
+    u(:,Lx+1,2:Ly-1,1)[left] = u(:,1,2:Ly-1,1)
+    u(:,Lx+1,2:Ly-1,Lz+1)[left_down] = u(:,1,2:Ly-1,1)
+    sync all
+    do y = 2, Ly-1
+       do mu = 1, 3
+          call metropolis(u,[Lx,y,1],mu,beta)
+       end do
+    end do
+    u(:,Lx,2:Ly-1,Lz+1)[down] = u(:,Lx,2:Ly-1,1)
+    u(:,0,2:Ly-1,1)[right] = u(:,Lx,2:Ly-1,1)
+    u(:,0,2:Ly-1,Lz+1)[right_down] = u(:,Lx,2:Ly-1,1)
+    sync all
     
     ! Update upper band. Done
     do x = 2, Lx-1
@@ -134,6 +186,45 @@ contains
     end do
     u(:,2:Lx-1,2:Ly-1,0)[up] = u(:,2:Lx-1,2:Ly-1,Lz)
     sync all
+    do x = 2, Lx-1
+       do mu = 1, 3
+          call metropolis(u,[x,1,Lz],mu,beta)
+       end do
+    end do
+    u(:,2:Lx-1,1,0)[up] = u(:,2:Lx-1,1,Lz)
+    u(:,2:Lx-1,Ly+1,Lz)[front] = u(:,2:Lx-1,1,Lz)
+    u(:,2:Lx-1,Ly+1,0)[front_up] = u(:,2:Lx-1,1,Lz)
+    sync all
+    do x = 2, Lx-1
+       do mu = 1, 3
+          call metropolis(u,[x,Ly,Lz],mu,beta)
+       end do
+    end do
+    u(:,2:Lx-1,Ly,0)[up] = u(:,2:Lx-1,Ly,Lz)
+    u(:,2:Lx-1,0,Lz)[back] = u(:,2:Lx-1,Ly,Lz)
+    u(:,2:Lx-1,0,0)[back_up] = u(:,2:Lx-1,Ly,Lz)
+    sync all
+    do y = 2, Lx-1
+       do mu = 1, 3
+          call metropolis(u,[1,y,Lz],mu,beta)
+       end do
+    end do
+    u(:,Lx,2:Ly-1,Lz)[left] = u(:,1,2:Ly-1,Lz)
+    u(:,1,2:Ly-1,0)[up] = u(:,1,2:Ly-1,Lz)
+    u(:,Lx,2:Ly-1,0)[left_up] = u(:,1,2:Ly-1,Lz)
+    sync all
+
+    do y = 2, Lx-1
+       do mu = 1, 3
+          call metropolis(u,[Lx,y,Lz],mu,beta)
+       end do
+    end do
+    u(:,0,2:Ly-1,Lz)[right] = u(:,Lx,2:Ly-1,Lz)
+    u(:,Lx,2:Ly-1,0)[up] = u(:,Lx,2:Ly-1,Lz)
+    u(:,0,2:Ly-1,0)[right_up] = u(:,Lx,2:Ly-1,Lz)
+    sync all
+    
+    
     
     ! Update left band. Done
     do y = 2, Ly-1
@@ -144,6 +235,15 @@ contains
        end do
     end do
     u(:,Lx+1,2:Ly-1,2:Lz-1)[left] = u(:,1,2:Ly-1,2:Lz-1)
+    sync all
+    do z = 2, Lz-1
+       do mu = 1, 3
+          call metropolis(u,[1,1,z],mu,beta)
+       end do
+    end do
+    u(:,Lx+1,1,2:Lz-1)[left]= u(:,1,1,2:Lz-1)
+    u(:,1,Ly+1,2:Lz-1)[front]= u(:,1,1,2:Lz-1)
+    u(:,Lx+1,Ly+1,2:Lz-1)[left_front]= u(:,1,1,2:Lz-1)
     sync all
     
     ! Update right band. Done
@@ -156,7 +256,18 @@ contains
     end do
     u(:,0,2:Ly-1,2:Lz-1)[right] = u(:,Lx,2:Ly-1,2:Lz-1)
     sync all
+    do z = 2, Lz-1
+       do mu = 1, 3
+          call metropolis(u,[Lx,1,z],mu,beta)
+       end do
+    end do
+    u(:,0,1,2:Lz-1)[right]= u(:,Lx,1,2:Lz-1)
+    u(:,Lx,Ly+1,2:Lz-1)[front]= u(:,Lx,1,2:Lz-1)
+    u(:,0,Ly+1,2:Lz-1)[right_front]= u(:,Lx,1,2:Lz-1)
+    sync all
+    
 
+    
     ! Update Front band. Done
     do x = 2, Lx-1
        do z = 2, Lz-1
@@ -178,7 +289,25 @@ contains
     end do
     u(:,2:Lx-1,0,2:Lz-1)[back] = u(:,2:Lx-1,Ly,2:Lz-1)
     sync all
-
+    do z = 2, Lz-1
+       do mu = 1, 3
+          call metropolis(u,[1,Ly,z],mu,beta)
+       end do
+    end do
+    u(:,Lx+1,Ly,2:Lz-1)[left] = u(:,1,Ly,2:Lz-1)
+    u(:,1,0,2:Lz-1)[back] = u(:,1,Ly,2:Lz-1)
+    u(:,Lx+1,0,2:Lz-1)[left_back] = u(:,1,Ly,2:Lz-1)
+    sync all
+    do z = 2, Lz-1
+       do mu = 1, 3
+          call metropolis(u,[Lx,Ly,z],mu,beta)
+       end do
+    end do
+    u(:,0,Ly,2:Lz-1)[right] = u(:,Lx,Ly,2:Lz-1)
+    u(:,Lx,0,2:Lz-1)[back] = u(:,Lx,Ly,2:Lz-1)
+    u(:,0,0,2:Lz-1)[right_back] = u(:,Lx,Ly,2:Lz-1)
+    sync all
+    !Update edges
     
     ! Update corners
     ! Up left front. Done
