@@ -1,20 +1,25 @@
+#include "../input/include"
 module dynamics
   use iso_fortran_env, only : dp => real64, i4 => int32
+#ifdef PARALLEL
   use parameters, only : Lx, Ly, Lz, L, d
+#endif
   use lua
   implicit none
-
+#ifdef PARALLEL
   integer(i4) :: left,right, up, down, back, front, corner(8), a(3)
   integer(i4) ::left_front, left_back, right_back,right_front,right_up, right_down, &
        left_up, left_down, front_down, front_up, back_down, back_up
   integer(i4), dimension(:), allocatable :: ip1, im1, ip2, im2, ip3, im3
+#endif
 contains
 
   subroutine cold_start(u)
     complex(dp), intent(out), dimension(:,:,:,:) :: u
     u = 1.0_dp
   end subroutine cold_start
-  
+
+#ifdef PARALLEL  
   subroutine set_memory(u,plq,beta,N_measurements,Nbeta,betai,betaf)
     use indices
     complex(dp), intent(inout), allocatable, dimension(:,:,:,:) :: u[:]
@@ -81,9 +86,36 @@ contains
    
     
   end subroutine set_memory
+#endif
+
+#ifdef SERIAL
+  subroutine set_memory(u,plq,beta,N_measurements,Nbeta,betai,betaf)
+    use pbc
+    use parameters, only : L
+    complex(dp), intent(inout), allocatable, dimension(:,:,:,:) :: u
+    real(dp), intent(inout), allocatable, dimension(:) :: plq, beta
+    integer(i4), intent(in) :: N_measurements, Nbeta
+    real(dp) :: betai, betaf
+    
+    integer(i4) :: i
+
+    allocate(u(3,L(1),L(2),L(3)))
+    allocate(plq(N_measurements))
+    allocate(beta(Nbeta))
+
+    beta = [(betai + (i-1)*(betaf-betai)/(Nbeta-1), i=1, Nbeta)]
+
+    call set_periodic_bounds(L(1),L(1))
+  end subroutine set_memory
+#endif
 
   subroutine thermalization(u,beta,N_thermalization)
+#ifdef PARALLEL
     complex(dp), intent(inout) :: u(3,0:Lx+1,0:Ly+1,0:Lz+1)[*]
+#endif
+#ifdef SERIAL
+    complex(dp), intent(inout) :: u(:,:,:,:)
+#endif
     real(dp), intent(in) :: beta
     integer(i4) :: N_thermalization
     integer(i4) :: i_sweeps
@@ -96,10 +128,16 @@ contains
 
   subroutine measurements(u,beta,N_measurements,Nskip,plq)
     use U1_functions
+#ifdef PARALLEL
     complex(dp), intent(inout) :: u(3,0:Lx+1,0:Ly+1,0:Lz+1)[*]
+    real(dp) :: plq(:)[*]
+#endif
+#ifdef SERIAL
+    complex(dp), intent(inout) :: u(:,:,:,:)
+    real(dp) :: plq(:)
+#endif
     real(dp), intent(in) :: beta
     integer(i4) :: N_measurements, Nskip
-    real(dp) :: plq(:)[*]
     integer(i4) :: i_sweeps, iskip
 
     do i_sweeps = 1, N_measurements
@@ -107,22 +145,47 @@ contains
           call sweeps(u,beta)
        end do
        plq(i_sweeps) = plaquette_value(u)
+#ifdef PARALLEL
        call co_sum(plq(i_sweeps),result_image = 1)
+#endif
     end do
     
   end subroutine measurements
   
   subroutine sweeps(u,beta)
+    
+#ifdef PARALLEL
     complex(dp), intent(inout) :: u(3,0:Lx+1,0:Ly+1,0:Lz+1)[*]
+#endif
+#ifdef SERIAL
+    complex(dp), intent(inout) :: u(:,:,:,:)
+    integer(i4) :: Lx, Ly, Lz
+#endif
     real(dp), intent(in) :: beta
-
     integer(i4) :: x,y,z,mu
 
+#ifdef SERIAL
+    Lx = size(u(1,:,1,1))
+    Ly = size(u(1,1,:,1))
+    Lz = size(u(1,1,1,:))
+    do x = 1, Lx
+       do y = 1, Ly
+          do z = 1, Lz
+             do mu = 1, 3
+                call metropolis(u,[x,y,z],mu,beta)
+             end do
+          end do
+       end do
+    end do   
+#endif
+
+#ifdef PARALLEL
     ! Update interior
     do x = 2, Lx-1
        do y = 2, Ly-1
           do z = 2, Lz-1
              do mu = 1, 3
+                !call heatbath(u,[x,y,z],mu,beta)
                 call metropolis(u,[x,y,z],mu,beta)
              end do
           end do
@@ -133,6 +196,7 @@ contains
     do x = 2, Lx-1
        do y = 2, Ly-1
           do mu = 1, 3
+             !call heatbath(u,[x,y,1],mu,beta)
              call metropolis(u,[x,y,1],mu,beta)
           end do
        end do
@@ -141,6 +205,7 @@ contains
     sync all
     do x = 2, Lx-1
        do mu = 1, 3
+          !call heatbath(u,[x,1,1],mu,beta)
           call metropolis(u,[x,1,1],mu,beta)
        end do
     end do
@@ -150,6 +215,7 @@ contains
     sync all
     do x = 2, Lx-1
        do mu = 1, 3
+          !call heatbath(u,[x,Ly,1],mu,beta)
           call metropolis(u,[x,Ly,1],mu,beta)
        end do
     end do
@@ -159,6 +225,7 @@ contains
     sync all
     do y = 2, Ly-1
        do mu = 1, 3
+          !call heatbath(u,[1,y,1],mu,beta)
           call metropolis(u,[1,y,1],mu,beta)
        end do
     end do
@@ -168,6 +235,7 @@ contains
     sync all
     do y = 2, Ly-1
        do mu = 1, 3
+          !call heatbath(u,[Lx,y,1],mu,beta)
           call metropolis(u,[Lx,y,1],mu,beta)
        end do
     end do
@@ -180,6 +248,7 @@ contains
     do x = 2, Lx-1
        do y = 2, Ly-1
           do mu = 1, 3
+             !call heatbath(u,[x,y,Lz],mu,beta)
              call metropolis(u,[x,y,Lz],mu,beta)
           end do
        end do
@@ -188,6 +257,7 @@ contains
     sync all
     do x = 2, Lx-1
        do mu = 1, 3
+          !call heatbath(u,[x,1,Lz],mu,beta)
           call metropolis(u,[x,1,Lz],mu,beta)
        end do
     end do
@@ -197,6 +267,7 @@ contains
     sync all
     do x = 2, Lx-1
        do mu = 1, 3
+          !call heatbath(u,[x,Ly,Lz],mu,beta)
           call metropolis(u,[x,Ly,Lz],mu,beta)
        end do
     end do
@@ -206,6 +277,7 @@ contains
     sync all
     do y = 2, Lx-1
        do mu = 1, 3
+          !call heatbath(u,[1,y,Lz],mu,beta)
           call metropolis(u,[1,y,Lz],mu,beta)
        end do
     end do
@@ -216,7 +288,8 @@ contains
 
     do y = 2, Lx-1
        do mu = 1, 3
-          call metropolis(u,[Lx,y,Lz],mu,beta)
+          !call heatbath(u,[Lx,y,Lz],mu,beta)
+          call METROPOLIS(u,[Lx,y,Lz],mu,beta)
        end do
     end do
     u(:,0,2:Ly-1,Lz)[right] = u(:,Lx,2:Ly-1,Lz)
@@ -230,6 +303,7 @@ contains
     do y = 2, Ly-1
        do z = 2, Lz-1
           do mu = 1, 3
+             !call heatbath(u,[1,y,z],mu,beta)
              call metropolis(u,[1,y,z],mu,beta)
           end do
        end do
@@ -238,6 +312,7 @@ contains
     sync all
     do z = 2, Lz-1
        do mu = 1, 3
+          !call heatbath(u,[1,1,z],mu,beta)
           call metropolis(u,[1,1,z],mu,beta)
        end do
     end do
@@ -250,6 +325,7 @@ contains
     do y = 2, Ly-1
        do z = 2, Lz-1
           do mu = 1, 3
+             !call heatbath(u,[Lx,y,z],mu,beta)
              call metropolis(u,[Lx,y,z],mu,beta)
           end do
        end do
@@ -258,6 +334,7 @@ contains
     sync all
     do z = 2, Lz-1
        do mu = 1, 3
+          !call heatbath(u,[Lx,1,z],mu,beta)
           call metropolis(u,[Lx,1,z],mu,beta)
        end do
     end do
@@ -272,6 +349,7 @@ contains
     do x = 2, Lx-1
        do z = 2, Lz-1
           do mu = 1, 3
+             !call heatbath(u,[x,1,z],mu,beta)
              call metropolis(u,[x,1,z],mu,beta)
           end do
        end do
@@ -283,6 +361,7 @@ contains
     do x = 2, Lx-1
        do z = 2, Lz-1
           do mu = 1, 3
+             !call heatbath(u,[x,Ly,z],mu,beta)
              call metropolis(u,[x,Ly,z],mu,beta)
           end do
        end do
@@ -291,6 +370,7 @@ contains
     sync all
     do z = 2, Lz-1
        do mu = 1, 3
+          !call heatbath(u,[1,Ly,z],mu,beta)
           call metropolis(u,[1,Ly,z],mu,beta)
        end do
     end do
@@ -300,6 +380,7 @@ contains
     sync all
     do z = 2, Lz-1
        do mu = 1, 3
+          !call heatbath(u,[Lx,Ly,z],mu,beta)
           call metropolis(u,[Lx,Ly,z],mu,beta)
        end do
     end do
@@ -312,6 +393,7 @@ contains
     ! Update corners
     ! Up left front. Done
     do mu = 1, 3
+       !call heatbath(u,[1,1,Lz],mu,beta)
        call metropolis(u,[1,1,Lz],mu,beta)
     end do
     u(:,1,1,0)[up] = u(:,1,1,Lz)
@@ -322,6 +404,7 @@ contains
     
     ! Up right front. Done
     do mu = 1, 3
+       !call heatbath(u,[Lx,1,Lz],mu,beta)
        call metropolis(u,[Lx,1,Lz],mu,beta)
     end do
     u(:,Lx,1,0)[up] = u(:,Lx,1,Lz)
@@ -332,6 +415,7 @@ contains
     
     ! Down left front. Done
     do mu = 1, 3
+       !call heatbath(u,[1,1,1],mu,beta)
        call metropolis(u,[1,1,1],mu,beta)
     end do
     u(:,Lx+1,1,1)[left] = u(:,1,1,1)
@@ -342,6 +426,7 @@ contains
     
     ! Down right front. done
     do mu = 1, 3
+       !call heatbath(u,[Lx,1,1],mu,beta)
        call metropolis(u,[Lx,1,1],mu,beta)
     end do
     u(:,Lx,1,Lz+1)[down] = u(:,Lx,1,1)
@@ -352,6 +437,7 @@ contains
 
     ! Up left back. Done
     do mu = 1, 3
+       !call heatbath(u,[1,Ly,Lz],mu,beta)
        call metropolis(u,[1,Ly,Lz],mu,beta)
     end do
     u(:,1,Ly,0)[up] = u(:,1,Ly,Lz)
@@ -362,7 +448,8 @@ contains
     
     ! Up right back. Done
     do mu = 1, 3
-       call metropolis(u,[Lx,Ly,Lz],mu,beta)
+       !call heatbath(u,[Lx,Ly,Lz],mu,beta)
+       call METROPOLIS(u,[Lx,Ly,Lz],mu,beta)
     end do
     u(:,Lx,Ly,0)[up] = u(:,Lx,Ly,Lz)
     u(:,0,Ly,Lz)[right] = u(:,Lx,Ly,Lz)
@@ -372,6 +459,7 @@ contains
     
     ! Down left back. Done
     do mu = 1, 3
+       !call heatbath(u,[1,Ly,1],mu,beta)
        call metropolis(u,[1,Ly,1],mu,beta)
     end do
     u(:,Lx+1,Ly,1)[left] = u(:,1,Ly,1)
@@ -382,6 +470,7 @@ contains
     
     ! Down right back. Done
     do mu = 1, 3
+       !call heatbath(u,[Lx,Ly,1],mu,beta)
        call metropolis(u,[Lx,Ly,1],mu,beta)
     end do
     u(:,Lx,Ly,Lz+1)[down] = u(:,Lx,Ly,1)
@@ -389,10 +478,8 @@ contains
     u(:,Lx,0,1)[back] = u(:,Lx,Ly,1)
     u(:,0,0,Lz+1)[corner(8)] = u(:,Lx,Ly,1) 
     sync all
-    
+#endif
   end subroutine sweeps
-
-
 
 
 end module dynamics

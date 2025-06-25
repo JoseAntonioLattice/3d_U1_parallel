@@ -10,3 +10,5 @@ data
 *.mod
 *.out
 *.exe
+
+*.bak

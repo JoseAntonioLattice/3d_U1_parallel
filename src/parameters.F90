@@ -1,10 +1,13 @@
+#include "../input/include"
 module parameters
 
   use iso_fortran_env, only : dp => real64, i4 => int32
 
   implicit none
 
+#ifdef PARALLEL
   integer(i4) :: d(3)
+#endif 
   integer(i4) :: L(3), Lx, Ly, Lz
   integer(i4) :: N_thermalization
   integer(i4) :: N_measurements
@@ -22,9 +25,11 @@ contains
 
   subroutine read_input()
 
+#ifdef PARALLEL
     if(this_image() == 1) then
        read(*,*) d
        print*,"Enter cores array: ", d
+#endif
        read(*,'(a)') inputfilename
        print*, 'Enter input parameters file: ', trim(inputfilename)
        read(*,'(a)') outputfilename
@@ -32,6 +37,7 @@ contains
        open(newunit = inunit,file = trim(inputfilename), status = 'old', action = "read")
        read(inunit, nml = parametersfile)
        write(*,nml = parametersfile)
+#ifdef PARALLEL    
     end if
 
     call co_broadcast(d,source_image = 1)
@@ -42,7 +48,7 @@ contains
     call co_broadcast(N_beta,source_image = 1)
     call co_broadcast(beta_i, source_image = 1)
     call co_broadcast(beta_f, source_image = 1)
-    
+#endif
   end subroutine read_input
 
   
