@@ -1,5 +1,5 @@
 &parametersfile
-L = 64, 64, 64
+L = 20,20,20
 N_thermalization = 500,
 N_measurements = 100,
 N_skip = 5,

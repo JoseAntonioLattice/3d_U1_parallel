@@ -1,2 +1,2 @@
+!#define PARALLEL
 #define SERIAL
-

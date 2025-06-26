@@ -2,9 +2,6 @@
 module lua
 
   use iso_fortran_env, only : dp => real64, i4 => int32
-#ifdef PARALLEL
-  use parameters, only : Lx, Ly, Lz
-#endif
   use U1_functions
   use random
   use constants, only : pi, twopi, i => ii
@@ -14,7 +11,7 @@ contains
 
   subroutine metropolis(u,x,mu,beta)
 #ifdef PARALLEL
-    complex(dp), dimension(3,0:Lx+1,0:Ly+1,0:Lz+1), intent(inout) :: u
+    complex(dp), dimension(:,:,:,:), intent(inout) :: u[*]
 #endif
 #ifdef SERIAL
     complex(dp), dimension(:,:,:,:), intent(inout) :: u
@@ -51,7 +48,7 @@ contains
 
   subroutine heatbath(u,x,mu,beta)
 #ifdef PARALLEL
-    complex(dp), dimension(3,0:Lx+1,0:Ly+1,0:Lz+1), intent(inout) :: u
+    complex(dp), dimension(:,:,:,:), intent(inout) :: u[*]
 #endif
 #ifdef SERIAL
     complex(dp), dimension(:,:,:,:), intent(inout) :: u

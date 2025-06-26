@@ -5,10 +5,11 @@ module arrays
   implicit none
   
 #ifdef SERIAL 
-  complex(dp), allocatable, dimension(:,:,:,:) :: U
+  complex(dp), allocatable, dimension(:,:,:,:) :: u
   real(dp), allocatable, dimension(:) :: plq, beta
-#endif
   
+#endif
+
 #ifdef PARALLEL  
   complex(dp), allocatable, dimension(:,:,:,:) :: U[:]
   real(dp), allocatable, dimension(:) :: plq[:], beta
