@@ -5,5 +5,8 @@ N_measurements = 100,
 N_skip = 5,
 beta_i = 0.05,
 beta_f = 5.0,
-n_beta = 30
+n_beta = 30,
+algorithm = "heatbath"
+start = "cold"
+equilibrium=T
 /

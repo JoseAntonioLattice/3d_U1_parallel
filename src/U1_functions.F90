@@ -1,4 +1,3 @@
-#include "../input/include"
 module U1_functions
 
   use iso_fortran_env, only : dp => real64, i4 => int32
@@ -40,92 +39,90 @@ contains
     
   end function plaquette_value
 
-#ifdef SERIAL
   function plaquette(u,x,mu,nu)
     complex(dp) :: plaquette
+#ifdef SERIAL
     complex(dp), dimension(:,:,:,:), intent(in) :: u
+#endif
+#ifdef PARALLEL
+    complex(dp), dimension(:,:,:,:), intent(in) :: u[*]
+#endif
     integer(i4), intent(in) :: x(3), mu, nu
+#ifdef SERIAL
     integer(i4), dimension(3) :: x2, x3 
-   
-    x2 = ip(x,mu)!x(mu) + 1
-    x3 = ip(x,nu)!x(nu) + 1
+#endif
+#ifdef PARALLEL
+    integer(i4), dimension(0:3) :: x2, x3 
+#endif
+
+#ifdef SERIAL    
+    x2 = ip(x,mu) !x(mu) + 1
+    x3 = ip(x,nu) !x(nu) + 1
 
     plaquette = U(mu,x(1),x(2),x(3)) * U(nu,x2(1),x2(2),x2(3)) * &
           conjg(U(mu,x3(1),x3(2),x3(3))) * conjg(U(nu,x(1),x(2),x(3)))
-    
-  end function plaquette
-
-  
-  function staples(u,x,mu)
-    complex(dp) :: staples
-
-    complex(dp), dimension(:,:,:,:), intent(in) :: u
-    integer(i4), intent(in) :: x(3), mu
-    integer(i4) :: nu
-    integer(i4), dimension(3) ::  x2, x3, x4, x5, x6
-    
-    staples = 0.0_dp
-    x3 = ip(x,mu)
-    do nu = 1, 3
-       if( nu == mu ) cycle
-       x2 = ip(x,nu)
-       x4 = im(x,nu)
-       x6 = im(x3,nu)
-       
-       staples = staples + u(nu,x(1),x(2),x(3)) * u(mu,x2(1),x2(2),x2(3)) * conjg( u(nu,x3(1),x3(2),x3(3)) ) + &
-            conjg( u(nu,x4(1),x4(2),x4(3)) ) * u(mu,x4(1),x4(2),x4(3)) * u(nu,x6(1),x6(2),x6(3))
-    end do
-    
-  end function staples
-  
 #endif
 
-  
 #ifdef PARALLEL
-  function plaquette(u,x,mu,nu)
-    complex(dp) :: plaquette
-    complex(dp), dimension(:,:,:,:), intent(in) :: u[*]
-    integer(i4), intent(in) :: x(3), mu, nu
-    integer(i4), dimension(0:3) :: x2, x3 
-
-
     x2 = ip([this_image(),x],mu)
     x3 = ip([this_image(),x],nu)
 
     plaquette = U(mu,x(1),x(2),x(3)) * U(nu,x2(1),x2(2),x2(3))[x2(0)] * &
           conjg(U(mu,x3(1),x3(2),x3(3))[x3(0)]) * conjg(U(nu,x(1),x(2),x(3)))
+#endif
     
   end function plaquette
 
+  
   function staples(u,x,mu)
-    use parameters, only : d
     complex(dp) :: staples
+#ifdef SERIAL
+    complex(dp), dimension(:,:,:,:), intent(in) :: u
+#endif
+#ifdef PARALLEL
     complex(dp), dimension(:,:,:,:), intent(in) :: u[*]
+#endif
     integer(i4), intent(in) :: x(3), mu
     integer(i4) :: nu
-
-    integer(i4), dimension(0:3) :: x2, x3, x4, x5, x6
-    
+#ifdef SERIAL
+    integer(i4), dimension(3) ::  x2, x3, x4, x5, x6
+#endif
+#ifdef PARALLEL
+    integer(i4), dimension(0:3) ::  x2, x3, x4, x5, x6
+#endif
     staples = 0.0_dp
-   
+#ifdef SERIAL
+    x3 = ip(x,mu)
+#endif
+#ifdef PARALLEL
     x3 = ip([this_image(),x],mu)
+#endif
     
     do nu = 1, 3
        if( nu == mu ) cycle
+#ifdef SERIAL
+       x2 = ip(x,nu)
+       x4 = im(x,nu)
+#endif
+#ifdef PARALLEL
        x2 = ip([this_image(),x],nu)
        x4 = im([this_image(),x],nu)
+#endif       
        x6 = im(x3,nu)
 
-       staples = staples + u(nu,x(1),x(2),x(3)) * u(mu,x2(1), x2(2), x2(3))[x2(0)] &
-            * conjg( u(nu,x3(1), x3(2), x3(3))[x3(0)] ) + &
-            conjg( u(nu,x4(1),x4(2),x4(3))[x4(0)] ) * u(mu,x4(1), x4(2), x4(3))[x4(0)] &
+#ifdef SERIAL
+       staples = staples + u(nu,x(1),x(2),x(3)) * u(mu,x2(1),x2(2),x2(3)) * conjg( u(nu,x3(1),x3(2),x3(3)) ) + &
+            conjg( u(nu,x4(1),x4(2),x4(3)) ) * u(mu,x4(1),x4(2),x4(3)) * u(nu,x6(1),x6(2),x6(3))
+#endif
+#ifdef PARALLEL
+       staples = staples + u(nu,x(1),x(2),x(3)) * u(mu,x2(1),x2(2),x2(3))[x2(0)] &
+            * conjg( u(nu,x3(1),x3(2),x3(3))[x3(0)] ) + &
+            conjg( u(nu,x4(1),x4(2),x4(3))[x4(0)] ) * u(mu,x4(1),x4(2),x4(3))[x4(0)] &
             * u(nu,x6(1), x6(2), x6(3))[x6(0)]
+#endif
     end do
     
   end function staples
-
-#endif
-
   
   
 end module U1_functions

@@ -1,4 +1,3 @@
-#include "../input/include"
 module dynamics
   use iso_fortran_env, only : dp => real64, i4 => int32
   use lua
@@ -11,6 +10,13 @@ contains
     u = 1.0_dp
   end subroutine cold_start
 
+  subroutine hot_start(u)
+    use constants, only : ii, twopi
+    complex(dp), intent(out), dimension(:,:,:,:) :: u
+    real(dp), dimension(size(u(:,1,1,1)), size(u(1,:,1,1)), size(u(1,1,:,1)), size(u(1,1,1,:))) :: phi
+    u = exp(ii*twopi*phi)
+  end subroutine hot_start
+  
 #ifdef PARALLEL  
   subroutine set_memory(u,plq,beta,N_measurements,Nbeta,betai,betaf)
     use indices
@@ -82,7 +88,8 @@ contains
   end subroutine set_memory
 #endif
 
-  subroutine thermalization(u,beta,N_thermalization)
+  subroutine thermalization(algorithm,u,beta,N_thermalization)
+    character(*), intent(in) :: algorithm
 #ifdef PARALLEL
     complex(dp), intent(inout) :: u(:,:,:,:)[*]
 #endif
@@ -94,13 +101,14 @@ contains
     integer(i4) :: i_sweeps
 
     do i_sweeps = 1, N_thermalization
-       call sweeps(u,beta)
+       call sweeps(trim(algorithm),u,beta)
     end do
 
   end subroutine thermalization
 
-  subroutine measurements(u,beta,N_measurements,Nskip,plq)
+  subroutine measurements(algorithm,u,beta,N_measurements,Nskip,plq)
     use U1_functions
+    character(*), intent(in) :: algorithm
 #ifdef PARALLEL
     complex(dp), intent(inout) :: u(:,:,:,:)[*]
     real(dp) :: plq(:)[*]
@@ -115,7 +123,7 @@ contains
 
     do i_sweeps = 1, N_measurements
        do iskip = 1, Nskip
-          call sweeps(u,beta)
+          call sweeps(trim(algorithm),u,beta)
        end do
        plq(i_sweeps) = plaquette_value(u)
        
@@ -127,8 +135,9 @@ contains
     
   end subroutine measurements
   
-  subroutine sweeps(u,beta)
-    
+  subroutine sweeps(algorithm,u,beta)
+
+    character(*), intent(in) :: algorithm
 #ifdef PARALLEL
     complex(dp), intent(inout) :: u(:,:,:,:)[*]
 #endif
@@ -147,7 +156,7 @@ contains
        do y = 1, Ly
           do z = 1, Lz
              do mu = 1, 3
-                call metropolis(u,[x,y,z],mu,beta)
+                call choose_algorithm(trim(algorithm),u,[x,y,z],mu,beta)
              end do
           end do
        end do

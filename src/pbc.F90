@@ -1,4 +1,3 @@
-#include "../input/include"
 module pbc
 
   use iso_fortran_env, only : i4 => int32
