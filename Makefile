@@ -10,14 +10,14 @@ ifeq ($(PRE),PARALLEL)
 	program = 3d_U1_parallel	
 endif
 
-src_files = indices pbc arrays parameters U1_functions lua dynamics main
+src_files = indices files pbc arrays parameters U1_functions lua dynamics main
 obj_files = $(patsubst %, build/%.o, $(src_files) )
 
 LIB = ~/Fortran/lib/
 INC = ~/Fortran/include/
 
 build/$(program): $(obj_files)
-	$(FC) $^ -o $@ -L $(LIB) -lrandom -lconstants
+	$(FC) $^ -o $@ -L $(LIB) -lrandom -lconstants -lfiles -lnum2str
 
 build/main.o: app/main.F90
 	$(FC) -D$(PRE) -O3 -c -I build -I $(INC) $< -o $@

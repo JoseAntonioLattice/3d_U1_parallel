@@ -5,13 +5,11 @@ module arrays
   
 #ifdef SERIAL 
   complex(dp), allocatable, dimension(:,:,:,:) :: u
-  real(dp), allocatable, dimension(:) :: plq, beta
-  
+  real(dp), allocatable, dimension(:) :: plq, top_den, beta
 #endif
-
 #ifdef PARALLEL  
   complex(dp), allocatable, dimension(:,:,:,:) :: U[:]
-  real(dp), allocatable, dimension(:) :: plq[:], beta
+  real(dp), allocatable, dimension(:) :: plq[:], top_den[:], beta
 #endif
   
 end module arrays

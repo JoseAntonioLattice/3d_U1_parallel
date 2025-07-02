@@ -1,6 +1,7 @@
 module dynamics
   use iso_fortran_env, only : dp => real64, i4 => int32
   use lua
+  use constants, only : twopi
   implicit none
 
 contains
@@ -18,12 +19,12 @@ contains
   end subroutine hot_start
   
 #ifdef PARALLEL  
-  subroutine set_memory(u,plq,beta,N_measurements,Nbeta,betai,betaf)
+  subroutine set_memory(u,plq,top_den,beta,N_measurements,Nbeta,betai,betaf)
     use indices
     use pbc
     use parameters, only : L, d
     complex(dp), intent(inout), allocatable, dimension(:,:,:,:) :: u[:]
-    real(dp), intent(inout), allocatable, dimension(:) :: plq[:], beta
+    real(dp), intent(inout), allocatable, dimension(:) :: plq[:],top_den[:], beta
     integer(i4), intent(in) :: N_measurements, Nbeta
     real(dp) :: betai, betaf
     
@@ -41,6 +42,7 @@ contains
 
     allocate(u(3,Lx,Ly,Lz)[*])
     allocate(plq(N_measurements)[*])
+    allocate(top_den(N_measurements)[*])
     allocate(beta(Nbeta))
 
     beta = [(betai + (i-1)*(betaf-betai)/(Nbeta-1), i=1, Nbeta)]
@@ -67,12 +69,12 @@ contains
 #endif
 
 #ifdef SERIAL
-  subroutine set_memory(u,plq,beta,N_measurements,Nbeta,betai,betaf)
+  subroutine set_memory(u,plq,top_den,beta,N_measurements,Nbeta,betai,betaf)
     use pbc
     use parameters, only : L
 
     complex(dp), intent(inout), allocatable, dimension(:,:,:,:) :: u
-    real(dp), intent(inout), allocatable, dimension(:) :: plq, beta
+    real(dp), intent(inout), allocatable, dimension(:) :: plq,top_den, beta
     integer(i4), intent(in) :: N_measurements, Nbeta
     real(dp) :: betai, betaf
     
@@ -80,6 +82,7 @@ contains
 
     allocate(u(3,L(1),L(2),L(3)))
     allocate(plq(N_measurements))
+    allocate(top_den(N_measurements))
     allocate(beta(Nbeta))
     
     beta = [(betai + (i-1)*(betaf-betai)/(Nbeta-1), i=1, Nbeta)]
@@ -106,16 +109,16 @@ contains
 
   end subroutine thermalization
 
-  subroutine measurements(algorithm,u,beta,N_measurements,Nskip,plq)
+  subroutine measurements(algorithm,u,beta,N_measurements,Nskip,plq,top_den)
     use U1_functions
     character(*), intent(in) :: algorithm
 #ifdef PARALLEL
     complex(dp), intent(inout) :: u(:,:,:,:)[*]
-    real(dp) :: plq(:)[*]
+    real(dp) :: plq(:)[*], top_den(:)[*]
 #endif
 #ifdef SERIAL
     complex(dp), intent(inout) :: u(:,:,:,:)
-    real(dp) :: plq(:)
+    real(dp) :: plq(:), top_den(:)
 #endif
     real(dp), intent(in) :: beta
     integer(i4),intent(in) :: N_measurements, Nskip
@@ -126,10 +129,13 @@ contains
           call sweeps(trim(algorithm),u,beta)
        end do
        plq(i_sweeps) = plaquette_value(u)
+       top_den(i_sweeps) = topological_charge_density(u)
        
 #ifdef PARALLEL
        sync all
        call co_sum(plq(i_sweeps),result_image = 1)
+       call co_sum(top_den(i_sweeps),result_image = 1)
+       !if(this_image() == 1) print*, top_den(i_sweeps)/twopi
 #endif
     end do
     

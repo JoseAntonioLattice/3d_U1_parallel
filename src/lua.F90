@@ -26,6 +26,7 @@ contains
   subroutine metropolis(u,x,mu,beta)
 #ifdef PARALLEL
     complex(dp), dimension(:,:,:,:), intent(inout) :: u[*]
+    !integer(i4), intent(in) :: x(0:3), mu
 #endif
 #ifdef SERIAL
     complex(dp), dimension(:,:,:,:), intent(inout) :: u
@@ -41,9 +42,12 @@ contains
     call random_number(phi)
     phi = twopi*phi
     u_new = exp(i*phi)
-
+#ifdef SERIAL
     deltaS = DS(u(mu,x(1),x(2),x(3)),u_new,beta,staples(u,x,mu))
-
+#endif
+#ifdef PARALLEL
+    deltaS = DS(u(mu,x(1),x(2),x(3)),u_new,beta,staples(u,[this_image(),x],mu))
+#endif
     call random_number(r)
     p = min(1.0_dp,exp(-DeltaS))
     if ( r <= p )then
@@ -73,8 +77,13 @@ contains
     complex(dp) :: v
     real(dp) :: beta_absv, gamma, phi_p, Z
     logical :: condition
-    
+
+#ifdef SERIAL
     v = conjg(staples(u,x,mu))
+#endif
+#ifdef PARALLEL
+    v = conjg(staples(u,[this_image(),x],mu))
+#endif
     beta_absv = beta*abs(v)
     gamma = atan2(v%im,v%re)
     if(gamma < 0.0_dp) gamma = gamma + 2*pi
@@ -109,7 +118,12 @@ subroutine glauber(u,x,mu,beta)
     phi = twopi*phi
     u_new = exp(i*phi)
 
+#ifdef SERIAL
     deltaS = DS(u(mu,x(1),x(2),x(3)),u_new,beta,staples(u,x,mu))
+#endif
+#ifdef PARALLEL
+    deltaS = DS(u(mu,x(1),x(2),x(3)),u_new,beta,staples(u,[this_image(),x],mu))
+#endif
 
     call random_number(r)
     p = 1/(1.0_dp + exp(deltaS))
