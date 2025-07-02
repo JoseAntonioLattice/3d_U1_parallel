@@ -19,15 +19,21 @@ program U1_3d
   print*, "3d U(1). Serial"
 #endif
 
-
+ 
   call read_input()
-  call set_memory(u,plq,top_den,beta,N_measurements,N_beta,beta_i,beta_f)
-  directories = [character(100) :: "data",algorithm,"L="//int2str(L(1)) ]
+  call set_memory(u,plq,top_den,beta,N_measurements,N_beta,beta_i,beta_f,equilibrium,tau_Q)
+  if(equilibrium)then
+     directories = [character(100) :: "data","equilibrium",algorithm,"L="//int2str(L(1)) ]
+  else
+     directories = [character(100) :: "data","out_equilibrium",algorithm,"L="//int2str(L(1)),"tau_Q="//int2str(tau_Q) ]
+  end if
 #ifdef PARALLEL
   if( this_image() == 1)then
+     print*, "Before creating file"
      call create_files(directories,filename)
      print*, "FILENAME: ", filename
   end if
+  sync all
 #endif
   
 #ifdef SERIAL
@@ -49,20 +55,9 @@ program U1_3d
 #ifdef SERIAL
   open(newunit = outunit, file = filename, status = "unknown", action = "write")
 #endif
-  do ib = 1, n_beta
-     call thermalization(trim(algorithm),u,1/beta(ib),N_thermalization)
-     call measurements(trim(algorithm),u,1/beta(ib),N_measurements,N_skip,plq,top_den)
-#ifdef PARALLEL
-     if(this_image() == 1)then
-        print*, beta(ib), (sum(plq)/size(plq))/(3*product(L)), sum(top_den)/(size(top_den)*twopi*product(L))
-        write(outunit,*) beta(ib), (sum(plq)/size(plq))/(3*product(L)), sum(top_den)/(size(top_den)*twopi*product(L))
-        flush(outunit)
-     end if
-#endif
-#ifdef SERIAL
-        print*, beta(ib), (sum(plq)/size(plq))/(3*product(L)), sum(top_den)/(size(top_den)*twopi*product(L))
-        write(outunit,*) beta(ib), (sum(plq)/size(plq))/(3*product(L)), sum(top_den)/(size(top_den)*twopi*product(L))
-        flush(outunit)
-#endif
-  end do
+  if(equilibrium) then
+     call eq(algorithm,u,beta, N_thermalization,N_skip,N_measurements,outunit)
+  else
+     call out_eq(algorithm,u,beta, tau_Q, N_thermalization,N_measurements,outunit)
+  end if
 end program U1_3d

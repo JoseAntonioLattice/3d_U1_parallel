@@ -16,12 +16,13 @@ module parameters
   character(30) :: algorithm
   character(10) :: start
   logical :: equilibrium
+  integer(i4) :: tau_Q
   integer(i4) :: inunit,outunit
   character(99) :: inputfilename, outputfilename
     
   
   namelist /parametersfile/ L,N_thermalization,N_measurements,N_skip, &
-       beta_i, beta_f, n_beta, algorithm, start, equilibrium
+       beta_i, beta_f, n_beta, algorithm, start, equilibrium, tau_Q
 contains
 
   subroutine read_input()
@@ -52,6 +53,7 @@ contains
     call co_broadcast(algorithm, source_image = 1)
     call co_broadcast(start, source_image = 1)
     call co_broadcast(equilibrium, source_image = 1)
+    call co_broadcast(tau_Q, source_image = 1)
 #endif
   end subroutine read_input
 

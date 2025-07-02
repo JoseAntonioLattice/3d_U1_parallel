@@ -31,7 +31,7 @@ contains
   end subroutine initialize_pbc
 
   
-subroutine set_periodic_bounds(ip_array,im_array,L)
+  subroutine set_periodic_bounds(ip_array,im_array,L)
     integer(i4), intent(in) :: L
     integer, dimension(L), intent(out) :: ip_array, im_array
     integer(i4) :: i

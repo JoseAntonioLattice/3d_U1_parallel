@@ -1,23 +1,25 @@
-PRE=PARALLEL
-
-ifeq ($(PRE),SERIAL)
-	FC=gfortran
-	program = 3d_U1_serial
-endif
-
-ifeq ($(PRE),PARALLEL)
-	FC=caf
-	program = 3d_U1_parallel	
-endif
-
 src_files = indices files pbc arrays parameters U1_functions lua dynamics main
 obj_files = $(patsubst %, build/%.o, $(src_files) )
 
 LIB = ~/Fortran/lib/
 INC = ~/Fortran/include/
 
+
+ifeq ($(MODE), SERIAL)
+	program=3d_U1_serial
+	PRE=SERIAL
+	FC=gfortran
+endif
+
+
+ifeq ($(MODE), PARALLEL)
+	program=3d_U1_parallel
+	PRE=PARALLEL
+	FC=caf
+endif
+
 build/$(program): $(obj_files)
-	$(FC) $^ -o $@ -L $(LIB) -lrandom -lconstants -lfiles -lnum2str
+	$(FC) $^ -o $@ -L $(LIB) -lrandom -lconstants -lfiles -lnum2str -lstats
 
 build/main.o: app/main.F90
 	$(FC) -D$(PRE) -O3 -c -I build -I $(INC) $< -o $@
@@ -26,7 +28,7 @@ build/%.o: src/%.F90
 	$(FC) -D$(PRE) -O3 -c -J build -I build -I $(INC) $< -o $@
 
 run:
-	{ echo 1 2 2; echo input/input_parameters.nml; echo data/data_1x1x2.dat; } | LD_LIBRARY_PATH=$(LIB) cafrun -n 4 build/$(program) 
+	{ echo 1 1 4 ; echo input/input_parameters.nml; echo data/data_1x1x2.dat; } | LD_LIBRARY_PATH=$(LIB) cafrun -n 4 build/$(program) 
 
 
 run_test:
