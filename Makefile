@@ -1,4 +1,4 @@
-src_files = indices files pbc arrays parameters U1_functions lua dynamics main
+src_files = indices files pbc arrays parameters U1_functions hybridMC lua dynamics main
 obj_files = $(patsubst %, build/%.o, $(src_files) )
 
 LIB = ~/Fortran/lib/

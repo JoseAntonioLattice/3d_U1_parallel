@@ -154,5 +154,5 @@ subroutine glauber(u,x,mu,beta)
     end select
     
   end subroutine choose_algorithm
-  
+
 end module lua

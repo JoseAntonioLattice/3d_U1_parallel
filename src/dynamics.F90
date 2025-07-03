@@ -2,6 +2,9 @@ module dynamics
   use iso_fortran_env, only : dp => real64, i4 => int32
   use lua
   use constants, only : twopi
+#ifdef SERIAL
+    use hybridMC, only : hmc
+#endif
   implicit none
 
 contains
@@ -17,14 +20,27 @@ contains
     real(dp), dimension(size(u(:,1,1,1)), size(u(1,:,1,1)), size(u(1,1,:,1)), size(u(1,1,1,:))) :: phi
     u = exp(ii*twopi*phi)
   end subroutine hot_start
+
+  subroutine select_start(u,start)
+    complex(dp), intent(out), dimension(:,:,:,:) :: u
+    character(*), intent(in) :: start
+    
+    select case(start)
+    case('cold')
+       call cold_start(u)
+    case("hot")
+       call hot_start(u)
+    end select
+    
+  end subroutine select_start
   
 #ifdef PARALLEL  
-  subroutine set_memory(u,plq,top_den,beta,N_measurements,Nbeta,betai,betaf)
+  subroutine set_memory(u,beta,N_measurements,Nbeta,betai,betaf)
     use indices
     use pbc
     use parameters, only : L, d
     complex(dp), intent(inout), allocatable, dimension(:,:,:,:) :: u[:]
-    real(dp), intent(inout), allocatable, dimension(:) :: plq[:],top_den[:], beta
+    real(dp), intent(inout), allocatable, dimension(:) :: beta
     integer(i4), intent(in) :: N_measurements, Nbeta
     real(dp) :: betai, betaf
     
@@ -41,8 +57,6 @@ contains
     if(this_image() == 1) print*, Lx, Ly, Lz, num_images()
 
     allocate(u(3,Lx,Ly,Lz)[*])
-    allocate(plq(N_measurements)[*])
-    allocate(top_den(N_measurements)[*])
     allocate(beta(Nbeta))
 
     beta = [(betai + (i-1)*(betaf-betai)/(Nbeta-1), i=1, Nbeta)]
@@ -72,12 +86,12 @@ contains
 #endif
 
 #ifdef SERIAL
-  subroutine set_memory(u,plq,top_den,beta,N_measurements,Nbeta,betai,betaf,equilibrium,tau_Q)
+  subroutine set_memory(u,beta,N_measurements,Nbeta,betai,betaf,equilibrium,tau_Q)
     use pbc
     use parameters, only : L
 
     complex(dp), intent(inout), allocatable, dimension(:,:,:,:) :: u
-    real(dp), intent(inout), allocatable, dimension(:) :: plq,top_den, beta
+    real(dp), intent(inout), allocatable, dimension(:) :: beta
     integer(i4), intent(in) :: N_measurements, Nbeta, tau_Q
     logical :: equilibrium
     real(dp) :: betai, betaf
@@ -85,8 +99,6 @@ contains
     integer(i4) :: i
 
     allocate(u(3,L(1),L(2),L(3)))
-    allocate(plq(N_measurements))
-    allocate(top_den(N_measurements))
     
     if(equilibrium)then
        allocate(beta(Nbeta))
@@ -100,8 +112,8 @@ contains
   end subroutine set_memory
 #endif
 
-  subroutine thermalization(algorithm,u,beta,N_thermalization)
-    character(*), intent(in) :: algorithm
+  subroutine thermalization(start,algorithm,u,beta,N_thermalization)
+    character(*), intent(in) :: start, algorithm
 #ifdef PARALLEL
     complex(dp), intent(inout) :: u(:,:,:,:)[*]
 #endif
@@ -112,6 +124,7 @@ contains
     integer(i4) :: N_thermalization
     integer(i4) :: i_sweeps
 
+    call select_start(u,start)
     do i_sweeps = 1, N_thermalization
        call sweeps(trim(algorithm),u,beta)
     end do
@@ -159,6 +172,32 @@ contains
     complex(dp), intent(inout) :: u(:,:,:,:)
 #endif
     real(dp), intent(in) :: beta
+
+    select case(algorithm)
+    case("metropolis")
+       call sweeps_alg(metropolis,u,beta)
+    case("glauber")
+       call sweeps_alg(glauber,u,beta)
+    case("heatbath")
+       call sweeps_alg(heatbath,u,beta)
+    case("hmc")
+       call hmc(u,beta,1.0_dp,20)
+    end select
+#ifdef PARALLEL
+    sync all
+#endif
+    
+  end subroutine sweeps
+
+  subroutine sweeps_alg(alg,u,beta)
+    procedure(lua_function) :: alg
+#ifdef PARALLEL
+    complex(dp), intent(inout) :: u(:,:,:,:)[*]
+#endif
+#ifdef SERIAL
+    complex(dp), intent(inout) :: u(:,:,:,:)
+#endif
+    real(dp), intent(in) :: beta
     integer(i4) :: x,y,z,mu
     integer(i4) :: Lx, Ly, Lz
     
@@ -166,50 +205,39 @@ contains
     Ly = size(u(1,1,:,1))
     Lz = size(u(1,1,1,:))
 
-
-#ifdef PARALLEL
-    if(this_image() == 1) print*, Lx, Ly, Lz
-#endif
-    
-    do x = 1, Lx
-       do y = 1, Ly
-          do z = 1, Lz
-             do mu = 1, 3
-                call choose_algorithm(trim(algorithm),u,[x,y,z],mu,beta)
+    do mu = 1, 3
+       do x = 1, Lx
+          do y = 1, Ly
+             do z = 1, Lz
+                call alg(u,[x,y,z],mu,beta)
              end do
           end do
        end do
-    end do   
-
-#ifdef PARALLEL
-    sync all
-#endif
+    end do
     
-  end subroutine sweeps
-
+  end subroutine sweeps_alg
   
-  subroutine eq(algorithm,u,beta, N_thermalization,Nskip,N_measurements,outunit)
+  
+  subroutine eq(start,algorithm,u,beta, N_thermalization,Nskip,N_measurements,outunit)
     use parameters, only : L
     use statistics
-    character(*), intent(in) :: algorithm
+
+    character(*), intent(in) :: start, algorithm
 #ifdef PARALLEL
     complex(dp), intent(inout) :: u(:,:,:,:)[*]
+    real(dp), dimension(N_measurements), codimension[*] :: plq, top_den
 #endif
 #ifdef SERIAL
     complex(dp), intent(inout) :: u(:,:,:,:)
+    real(dp), dimension(N_measurements) :: plq, top_den
 #endif
     integer(i4), intent(in) :: N_thermalization, Nskip, N_measurements, outunit
     real(dp), intent(in) :: beta(:)
     integer(i4) :: ib, i_sweeps
-#ifdef PARALLEL    
-    real(dp), dimension(N_measurements), codimension[*] :: plq, top_den
-#endif
-#ifdef SERIAL    
-    real(dp), dimension(N_measurements) :: plq, top_den
-#endif
+    real(dp) :: err_plq(2), err_top(2)
     
     do ib = 1, size(beta)
-       call thermalization(trim(algorithm),u,1/beta(ib),N_thermalization)
+       call thermalization(trim(start),trim(algorithm),u,1/beta(ib),N_thermalization)
        call measurements(trim(algorithm),u,1/beta(ib),N_measurements,Nskip,plq,top_den)
 #ifdef PARALLEL
        if(this_image() == 1)then
@@ -219,18 +247,22 @@ contains
        end if
 #endif
 #ifdef SERIAL
-       print*, beta(ib), (sum(plq)/size(plq))/(3*product(L)), sum(top_den)/(size(top_den)*twopi*product(L))
-       write(outunit,*) beta(ib), (sum(plq)/size(plq))/(3*product(L)), sum(top_den)/(size(top_den)*twopi*product(L))
+       err_plq = jackknife_max(plq)/(3*product(L))
+       err_top = jackknife_max(top_den)/(twopi*product(L))
+       print*, beta(ib), avr(plq)/(3*product(L)), err_plq(1), &
+            avr(top_den)/(twopi*product(L)), err_top(1)
+       write(outunit,*) beta(ib), avr(plq)/(3*product(L)), err_plq(1), &
+            avr(top_den)/(twopi*product(L)), err_top(1)
        flush(outunit)
 #endif
     end do
     
   end subroutine eq
   
-  subroutine out_eq(algorithm,u,beta, tau_Q, N_thermalization, N_measurements,outunit)
+  subroutine out_eq(start,algorithm,u,beta, tau_Q, N_thermalization, N_measurements,outunit)
     use parameters, only : L
     use statistics
-    character(*), intent(in) :: algorithm
+    character(*), intent(in) :: start, algorithm
 #ifdef PARALLEL
     complex(dp), intent(inout) :: u(:,:,:,:)[*]
 #endif
@@ -242,8 +274,9 @@ contains
     integer(i4) :: ib, i_sweeps
     real(dp), dimension(-tau_Q:tau_Q,N_measurements) :: plq, top_den
     real(dp) :: err_plq(2), err_top(2)
+    
     do i_sweeps = 1, N_measurements
-       call thermalization(algorithm,u,1/beta(-tau_Q),N_thermalization)
+       call thermalization(start,algorithm,u,1/beta(-tau_Q),N_thermalization)
        do ib = -tau_Q, tau_Q
           call sweeps(algorithm,u,1/beta(ib))
           plq(ib,i_sweeps) = plaquette_value(u)
