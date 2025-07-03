@@ -4,7 +4,6 @@ module hybridMC
   use random
   use constants
   use U1_functions
-  use pbc, only : ip, im
   implicit none
 
 contains
@@ -51,7 +50,7 @@ contains
     complex(dp), intent(inout), dimension(:,:,:,:) :: u
     real(dp), intent(in) :: beta
     complex(i4), dimension(size(u(:,1,1,1)),size(u(1,:,1,1)),size(u(1,1,:,1)),size(u(1,1,1,:))) :: force
-    integer(i4) :: Lx,Ly,Lz, x, y,z,mu,nu
+    integer(i4) :: Lx,Ly,Lz, x, y,z,mu
     complex(dp) :: stp
     
     Lx = size(u(1,:,1,1))
@@ -93,7 +92,7 @@ contains
     end do
   end function momentum
 
-    function DH(U,Unew,P,Pnew,beta)
+  function DH(U,Unew,P,Pnew,beta)
     real(dp) :: DH
     complex(dp), dimension(:,:,:,:), intent(in) :: U, Unew
     real(dp), dimension(:,:,:,:), intent(in) :: P, Pnew
@@ -112,29 +111,19 @@ contains
        do y = 1, Ly
           do z = 1, Lz
              do mu = 1, 2
+                DH = DH + (pnew(mu,x,y,z))**2 - (p(mu,x,y,z))**2
                 do nu = mu+1, 3 
                    DeltaS = DeltaS + real(plaquette(u,[x,y,z],mu,nu) - plaquette(unew,[x,y,z],mu,nu))
                 end do
              end do
+             DH = DH + (pnew(3,x,y,z))**2 - (p(3,x,y,z))**2
           end do
        end do
     end do
     
     DeltaS = beta*DeltaS
-
-    do x = 1, Lx
-       do y = 1, Ly
-          do z = 1, Lz
-             do mu = 1, 3
-                DH = DH + (pnew(mu,x,y,z))**2 - (p(mu,x,y,z))**2
-             end do
-          end do
-       end do
-    end do
-
     DH = 0.5*DH + DeltaS
-    
-    
+        
   end function DH
 
 end module hybridMC

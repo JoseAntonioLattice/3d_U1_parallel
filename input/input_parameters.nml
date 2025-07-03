@@ -6,8 +6,8 @@ N_skip = 10,
 beta_i = 0.05,
 beta_f = 5.0,
 n_beta = 30,
-algorithm = "hmc"
+algorithm = "metropolis"
 start = "cold"
 equilibrium=T
-tau_Q = 16
+tau_Q = 8
 /

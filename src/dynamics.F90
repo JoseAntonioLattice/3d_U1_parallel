@@ -181,7 +181,7 @@ contains
     case("heatbath")
        call sweeps_alg(heatbath,u,beta)
     case("hmc")
-       call hmc(u,beta,1.0_dp,20)
+       call hmc(u,beta,1.0_dp,10)
     end select
 #ifdef PARALLEL
     sync all
