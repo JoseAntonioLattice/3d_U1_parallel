@@ -5,8 +5,7 @@ module arrays
   
 #ifdef SERIAL 
   complex(dp), allocatable, dimension(:,:,:,:) :: u
-#endif
-#ifdef PARALLEL  
+#elif PARALLEL  
   complex(dp), allocatable, dimension(:,:,:,:) :: U[:]
 #endif
   real(dp), allocatable, dimension(:) :: beta

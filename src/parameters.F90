@@ -11,9 +11,12 @@ module parameters
   integer(i4) :: N_thermalization
   integer(i4) :: N_measurements
   integer(i4) :: N_skip
+  logical :: isbeta
   real(dp) :: beta_i, beta_f
   integer(i4) :: n_beta
   character(30) :: algorithm
+  integer(i4) :: Nhmc
+  real(dp) :: Thmc
   character(10) :: start
   logical :: equilibrium
   integer(i4) :: tau_Q
@@ -22,7 +25,7 @@ module parameters
     
   
   namelist /parametersfile/ L,N_thermalization,N_measurements,N_skip, &
-       beta_i, beta_f, n_beta, algorithm, start, equilibrium, tau_Q
+       isbeta, beta_i, beta_f, n_beta, algorithm,Nhmc,Thmc, start, equilibrium, tau_Q
 contains
 
   subroutine read_input()
@@ -47,6 +50,7 @@ contains
     call co_broadcast(N_measurements,source_image = 1)
     call co_broadcast(N_thermalization,source_image = 1)
     call co_broadcast(N_skip,source_image = 1)
+    call co_broadcast(isbeta,source_image = 1)
     call co_broadcast(N_beta,source_image = 1)
     call co_broadcast(beta_i, source_image = 1)
     call co_broadcast(beta_f, source_image = 1)

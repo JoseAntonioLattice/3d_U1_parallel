@@ -1,13 +1,16 @@
 &parametersfile
-L = 10,10,10
+L = 16,16,16
 N_thermalization = 500,
 N_measurements = 100,
 N_skip = 10,
-beta_i = 0.05,
+isbeta = F
+beta_i = 0.01,
 beta_f = 5.0,
-n_beta = 30,
+n_beta = 41,
 algorithm = "metropolis"
+Nhmc=10
+Thmc = 1.0
 start = "cold"
 equilibrium=T
-tau_Q = 8
+tau_Q = 16
 /

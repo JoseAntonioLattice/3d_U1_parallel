@@ -1,4 +1,4 @@
-src_files = indices files pbc arrays parameters U1_functions hybridMC lua dynamics main
+src_files = indices files pbc arrays parameters U1_functions lua dynamics main
 obj_files = $(patsubst %, build/%.o, $(src_files) )
 
 LIB = ~/Fortran/lib/
@@ -12,11 +12,18 @@ ifeq ($(MODE), SERIAL)
 endif
 
 
-ifeq ($(MODE), PARALLEL)
+ifeq ($(PARALLEL),1)
 	program=3d_U1_parallel
-	PRE=PARALLEL
+	PRE="PARALLEL=1"
 	FC=caf
 endif
+
+ifeq ($(PARALLEL),2)
+	program=3d_U1_parallel
+	PRE="PARALLEL=2"
+	FC=caf
+endif
+
 
 build/$(program): $(obj_files)
 	$(FC) $^ -o $@ -L $(LIB) -lrandom -lconstants -lfiles -lnum2str -lstats
@@ -28,7 +35,7 @@ build/%.o: src/%.F90
 	$(FC) -D$(PRE) -O3 -c -J build -I build -I $(INC) $< -o $@
 
 run:
-	{ echo 1 1 4 ; echo input/input_parameters.nml; echo data/data_1x1x2.dat; } | LD_LIBRARY_PATH=$(LIB) cafrun -n 4 build/$(program) 
+	{ echo $(c1) $(c2) $(c3) ; echo input/input_parameters.nml; echo data/data_1x1x2.dat; } | LD_LIBRARY_PATH=$(LIB) cafrun -n $$(( $(c1)*$(c2)*$(c3) )) build/$(program) 
 
 
 run_test:

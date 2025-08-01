@@ -13,9 +13,14 @@ contains
     real(dp) :: plaquette_value
 #ifdef SERIAL
     complex(dp), dimension(:,:,:,:), intent(in) :: u
-#endif
-#ifdef PARALLEL
+    integer(i4), dimension(3) :: point
+#elif PARALLEL == 1
     complex(dp), dimension(:,:,:,:), intent(in) :: u[*]
+    integer(i4) :: thisimage
+    integer(i4), dimension(0:3) :: point
+#elif PARALLEL == 2
+    complex(dp), dimension(:,0:,0:,0:), intent(in) :: u
+    integer(i4), dimension(3) :: point
 #endif
     integer(i4) :: Lx, Ly, Lz
     integer(i4) :: x,y,z, mu, nu
@@ -25,18 +30,26 @@ contains
     Lx = size(u(1,:,1,1))
     Ly = size(u(1,1,:,1))
     Lz = size(u(1,1,1,:))
+
+#if PARALLEL == 1
+    thisimage = this_image()
+#elif PARALLEL == 2
+    Lx = Lx - 2
+    Ly = Ly - 2
+    Lz = Lz - 2
+#endif
     
     do x = 1, Lx
        do y = 1, Ly
           do z = 1, Lz
              do mu = 1, 2
                 do nu = mu+1, 3
-#ifdef SERIAL 
-                   plaquette_value = plaquette_value + real(plaquette(u,[x,y,z],mu,nu))
+#if defined(SERIAL) || PARALLEL == 2
+                   point = [x,y,z]
+#elif PARALLEL == 1
+                   point = [thisimage,x,y,z]
 #endif
-#ifdef PARALLEL
-                   plaquette_value = plaquette_value + real(plaquette(u,[this_image(),x,y,z],mu,nu))
-#endif
+                   plaquette_value = plaquette_value + real(plaquette(u,point,mu,nu))
                 end do
              end do
           end do
@@ -51,28 +64,28 @@ contains
     complex(dp), dimension(:,:,:,:), intent(in) :: u
     integer(i4), intent(in) :: x(3), mu, nu
     integer(i4), dimension(3) :: x2, x3
-#endif
-#ifdef PARALLEL
+#elif PARALLEL == 1
     complex(dp), dimension(:,:,:,:), intent(in) :: u[*]
     integer(i4), intent(in) :: x(0:3), mu, nu
-    integer(i4), dimension(0:3) :: x2, x3 
+    integer(i4), dimension(0:3) :: x2, x3
+#elif PARALLEL == 2
+    complex(dp), dimension(:,0:,0:,0:), intent(in) :: u
+    integer(i4), intent(in) :: x(3), mu, nu
+    integer(i4), dimension(3) :: x2, x3
 #endif
 
     x2 = ip(x,mu)
     x3 = ip(x,nu)
 
-#ifdef SERIAL    
+#if defined(SERIAL) || PARALLEL == 2
     plaquette = U(mu,x(1),x(2),x(3)) * U(nu,x2(1),x2(2),x2(3)) * &
           conjg(U(mu,x3(1),x3(2),x3(3))) * conjg(U(nu,x(1),x(2),x(3)))
-#endif
-
-#ifdef PARALLEL
+#elif PARALLEL == 1
     plaquette = U(mu,x(1),x(2),x(3))[x(0)] * U(nu,x2(1),x2(2),x2(3))[x2(0)] * &
           conjg(U(mu,x3(1),x3(2),x3(3))[x3(0)]) * conjg(U(nu,x(1),x(2),x(3))[x(0)])
 #endif
     
   end function plaquette
-
   
   function staples(u,x,mu)
     complex(dp) :: staples
@@ -80,11 +93,14 @@ contains
     complex(dp), dimension(:,:,:,:), intent(in) :: u
     integer(i4), intent(in) :: x(3), mu
     integer(i4), dimension(3) ::  x2, x3, x4, x5, x6
-#endif
-#ifdef PARALLEL
+#elif PARALLEL == 1
     complex(dp), dimension(:,:,:,:), intent(in) :: u[*]
     integer(i4), intent(in) :: x(0:3), mu
     integer(i4), dimension(0:3) ::  x2, x3, x4, x5, x6
+#elif PARALLEL == 2
+    complex(dp), dimension(:,0:,0:,0:), intent(in) :: u
+    integer(i4), intent(in) :: x(3), mu
+    integer(i4), dimension(3) ::  x2, x3, x4, x5, x6
 #endif
     integer(i4) :: nu
 
@@ -97,11 +113,10 @@ contains
        x4 = im(x,nu)       
        x6 = im(x3,nu)
 
-#ifdef SERIAL
+#if defined(SERIAL) || PARALLEL == 2
        staples = staples + u(nu,x(1),x(2),x(3)) * u(mu,x2(1),x2(2),x2(3)) * conjg( u(nu,x3(1),x3(2),x3(3)) ) + &
             conjg( u(nu,x4(1),x4(2),x4(3)) ) * u(mu,x4(1),x4(2),x4(3)) * u(nu,x6(1),x6(2),x6(3))
-#endif
-#ifdef PARALLEL
+#elif PARALLEL == 1
        staples = staples + u(nu,x(1),x(2),x(3))[x(0)] * u(mu,x2(1),x2(2),x2(3))[x2(0)] &
             * conjg( u(nu,x3(1),x3(2),x3(3))[x3(0)] ) + &
             conjg( u(nu,x4(1),x4(2),x4(3))[x4(0)] ) * u(mu,x4(1),x4(2),x4(3))[x4(0)] &
@@ -116,10 +131,13 @@ contains
 #ifdef SERIAL
     complex(dp), dimension(:,:,:,:), intent(in) :: u
     integer(i4), dimension(3) :: point, x4, x5, x6
-#endif
-#ifdef PARALLEL
+#elif PARALLEL == 1
     complex(dp), dimension(:,:,:,:), intent(in) :: u[*]
     integer(i4), dimension(0:3) :: point, x4, x5, x6
+    integer(i4) :: thisimage
+#elif PARALLEL == 2
+    complex(dp), dimension(:,0:,0:,0:), intent(in) :: u
+    integer(i4), dimension(3) :: point, x4, x5, x6
 #endif
     integer(i4) :: x, y, z, Lx, Ly, Lz
     complex(dp) :: plq1, plq2, plq3, plq4, plq5, plq6
@@ -128,17 +146,23 @@ contains
     Lx = size(u(1,:,1,1))
     Ly = size(u(1,1,:,1))
     Lz = size(u(1,1,1,:))
-    
+
+#if PARALLEL == 1
+    thisimage = this_image()
+#elif PARALLEL == 2
+    Lx = Lx - 2
+    Ly = Ly - 2
+    Lz = Lz - 2
+#endif
     
     topological_charge_density = 0.0_dp
     do x = 1, Lx
        do y = 1, Ly
           do z = 1, Lz
-#ifdef SERIAL
+#if defined(SERIAL) || PARALLEL == 2
              point = [x,y,z]
-#endif
-#ifdef PARALLEL
-             point = [this_image(),x,y,z]
+#elif PARALLEL == 1
+             point = [thisimage,x,y,z]
 #endif
              plq1 = conjg(plaquette(u,point,1,2))
              plq2 = plaquette(u,point,1,3)
@@ -165,9 +189,7 @@ contains
           end do
        end do
     end do
-    
-       
-    
+      
   end function topological_charge_density
   
   

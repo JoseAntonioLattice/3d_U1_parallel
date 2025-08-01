@@ -4,24 +4,24 @@ module indices
 
 contains
 
-  function get_index(vector,dimension_space,length_lattice)
+  function get_index(vector,length_lattice)
 
     integer :: get_index
 
     integer, dimension(:), intent(in) :: vector
-    integer, intent(in) :: dimension_space
-    integer, intent(in) :: length_lattice(dimension_space)
+    integer :: dimension_space
+    integer, intent(in) :: length_lattice(:)
 
     integer :: suma, prod
     integer :: i
 
+    dimension_space = size(length_lattice)
 
     suma = vector(1)
     prod = 1
     if( dimension_space > 1)then
        do i = 2, dimension_space
-          prod = prod * length_lattice(i-1)
-          suma = suma + (vector(i) - 1) * product(length_lattice(1:i-1))!length_lattice**(i-1)
+          suma = suma + (vector(i) - 1) * product(length_lattice(1:i-1))
        end do
     end if
 
@@ -31,16 +31,18 @@ contains
   end function get_index
 
 
-  function get_index_array(idx,d,L) result(vector)
+  function get_index_array(idx,L) result(vector)
 
     integer, intent(in) :: idx
-    integer, intent(in) :: d
-    integer, intent(in) :: L(d)
+    integer :: d
+    integer, intent(in) :: L(:)
 
-    integer, dimension(d) :: vector
+    integer, dimension(size(L)) :: vector
 
     integer :: i, n, modx, suma, prod1, prod2
 
+    d = size(L)
+    
     modx = mod(idx,L(1))
     vector(1) = modx
     if(modx == 0) vector(1) = L(1)

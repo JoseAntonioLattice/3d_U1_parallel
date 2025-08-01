@@ -5,12 +5,9 @@ module pbc
 
 #ifdef SERIAL
   integer(i4), allocatable, dimension(:) :: ip1,ip2,ip3, im1,im2,im3
-#endif
-
-  
-#ifdef PARALLEL
+#elif PARALLEL
   integer(i4), allocatable, dimension(:,:), codimension[:] :: ip1,ip2,ip3, im1,im2,im3
-  integer(i4), dimension(3) :: ip1_c, ip2_c, ip3_c, im1_c, im2_c, im3_c
+  integer(i4), dimension(:), allocatable :: ip1_c, ip2_c, ip3_c, im1_c, im2_c, im3_c
 #endif
   
 contains
@@ -88,7 +85,6 @@ contains
     allocate(ip2(L(2),2)[*],im2(L(2),2)[*])
     allocate(ip3(L(3),2)[*],im3(L(3),2)[*])
 
-    
     call set_periodic_bounds(ip1,im1,L(1),this_core,left(1),right(1))
     call set_periodic_bounds(ip2,im2,L(2),this_core,left(2),right(2))
     call set_periodic_bounds(ip3,im3,L(3),this_core,left(3),right(3))
@@ -116,11 +112,17 @@ contains
   end subroutine set_periodic_bounds
 
   function ip(x,mu)
+#if PARALLEL == 1
     integer(i4), dimension(0:3) :: ip
-    integer(i4), intent(in) :: x(0:3), mu
+    integer(i4), intent(in) :: x(0:3)
+#elif PARALLEL == 2
+    integer(i4), dimension(3) :: ip
+    integer(i4), intent(in) :: x(3)
+#endif
+    integer, intent(in) :: mu  
     
     ip = x
-    
+#if PARALLEL == 1
     select case(mu)
     case(1)
        ip(mu) = ip1(x(mu),1)
@@ -132,15 +134,23 @@ contains
        ip(mu) = ip3(x(mu),1)
        ip(0)  = ip3(x(mu),2)[x(0)]
     end select
-    
+#elif PARALLEL == 2
+    ip(mu) = x(mu) + 1
+#endif
   end function ip
 
   function im(x,mu)
+#if PARALLEL == 1
     integer(i4), dimension(0:3) :: im
-    integer(i4), intent(in) :: x(0:3), mu
+    integer(i4), intent(in) :: x(0:3)
+#elif PARALLEL == 2
+    integer(i4), dimension(3) :: im
+    integer(i4), intent(in) :: x(3)
+#endif
+    integer, intent(in) :: mu  
     
     im = x
-    
+#if PARALLEL == 1    
     select case(mu)
     case(1)
        im(mu) = im1(x(mu),1)
@@ -152,25 +162,45 @@ contains
        im(mu) = im3(x(mu),1)
        im(0)  = im3(x(mu),2)[x(0)]
     end select
-    
+#elif PARALLEL == 2
+    im(mu) = x(mu) - 1
+#endif
   end function im
 
   
-  function im_cores(x,mu)
-    integer(i4) :: im_cores(3)
+  function im_core(x,mu)
+    integer(i4) :: im_core(3)
     integer(i4), intent(in) :: x(3), mu
     
-    im_cores = x
+    im_core = x
     
     select case(mu)
     case(1)
-       im_cores(mu) = im1_c(x(mu))
+       im_core(mu) = im1_c(x(mu))
     case(2)
-       im_cores(mu) = im2_c(x(mu))
+       im_core(mu) = im2_c(x(mu))
     case(3)
-       im_cores(mu) = im3_c(x(mu))
+       im_core(mu) = im3_c(x(mu))
     end select
     
-  end function im_cores
+  end function im_core
+
+  
+  function ip_core(x,mu)
+    integer(i4) :: ip_core(3)
+    integer(i4), intent(in) :: x(3), mu
+    
+    ip_core = x
+    
+    select case(mu)
+    case(1)
+       ip_core(mu) = ip1_c(x(mu))
+    case(2)
+       ip_core(mu) = ip2_c(x(mu))
+    case(3)
+       ip_core(mu) = ip3_c(x(mu))
+    end select
+    
+  end function ip_core
 #endif
 end module pbc
