@@ -58,6 +58,8 @@ contains
     call co_broadcast(start, source_image = 1)
     call co_broadcast(equilibrium, source_image = 1)
     call co_broadcast(tau_Q, source_image = 1)
+    call co_broadcast(Nhmc, source_image = 1)
+    call co_broadcast(Thmc, source_image = 1)
 #endif
   end subroutine read_input
 

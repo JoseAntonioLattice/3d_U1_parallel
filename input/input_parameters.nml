@@ -1,5 +1,5 @@
 &parametersfile
-L = 16,16,16
+L = 10,10,10
 N_thermalization = 500,
 N_measurements = 100,
 N_skip = 10,
@@ -7,7 +7,7 @@ isbeta = F
 beta_i = 0.01,
 beta_f = 5.0,
 n_beta = 41,
-algorithm = "metropolis"
+algorithm = "hmc"
 Nhmc=10
 Thmc = 1.0
 start = "cold"

@@ -2,20 +2,11 @@ module dynamics
   use iso_fortran_env, only : dp => real64, i4 => int32
   use lua
   use constants, only : twopi
-#if defined(SERIAL) || PARALLEL == 1
   use hybridMC, only : hmc
-#endif
+  use parallel_utils
   implicit none
 
-  integer(i4) :: left, right, up, down, front, back, &
-       left_up, left_down, left_front, left_back, &
-       right_up, right_down, right_front, right_back, &
-       back_up, back_down, front_up, front_down, &
-       left_front_up, left_front_down, &
-       left_back_up, left_back_down, &
-       right_front_up, right_front_down, &
-       right_back_up, right_back_down, &
-       Lx, Ly, Lz
+  integer(i4) :: Lx, Ly, Lz
 contains
 
   subroutine cold_start(u)
@@ -269,11 +260,8 @@ contains
        else
           call sweeps_alg(heatbath,u,b)
        end if
-#if defined(SERIAL) || PARALLEL == 1
     case("hmc")
-       !if( .not. isbeta .and. b < epsilon(1.0_dp) ) error stop 'temperature zero not supported'
        call hmc(u,b,Thmc,Nhmc)
-#endif
     end select
 #ifdef PARALLEL
     sync all
@@ -451,6 +439,7 @@ contains
     u(:,0,0,Lz)[right_back]= u(:,Lx,Ly,Lz)
     u(:,0,Ly,0)[right_up]  = u(:,Lx,Ly,Lz)
     u(:,Lx,0,0)[back_up]   = u(:,Lx,Ly,Lz)
+    sync all
 
     u(:,0,0,0)[right_back_up] = u(:,Lx,Ly,Lz)
     sync all
