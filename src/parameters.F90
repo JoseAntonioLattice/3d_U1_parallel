@@ -6,7 +6,8 @@ module parameters
 
 #ifdef PARALLEL
   integer(i4) :: d(3)
-#endif 
+#endif
+  logical :: inCluster
   integer(i4) :: L(3)
   integer(i4) :: N_thermalization
   integer(i4) :: N_measurements
@@ -24,7 +25,7 @@ module parameters
   character(99) :: inputfilename, outputfilename
     
   
-  namelist /parametersfile/ L,N_thermalization,N_measurements,N_skip, &
+  namelist /parametersfile/ inCluster,L,N_thermalization,N_measurements,N_skip, &
        isbeta, beta_i, beta_f, n_beta, algorithm,Nhmc,Thmc, start, equilibrium, tau_Q
 contains
 
@@ -37,11 +38,32 @@ contains
 #endif
        read(*,'(a)') inputfilename
        print*, 'Enter input parameters file: ', trim(inputfilename)
-       read(*,'(a)') outputfilename
-       print*, 'Enter output file: ', trim(outputfilename)
        open(newunit = inunit,file = trim(inputfilename), status = 'old', action = "read")
        read(inunit, nml = parametersfile)
+
+       if(InCluster) then
+          read(*,'(a)') outputfilename
+          print*, 'Enter output file: ', trim(outputfilename)
+       endif
+
        write(*,nml = parametersfile)
+
+       if( any(L<=0) ) stop "All elements in L must be > 0"
+       if( N_measurements <= 1 ) stop "N_measurements must be > 1"
+       if( N_thermalization <= 0 ) stop "N_thermalization must be > 0"
+       if( N_skip <= 0 ) stop "N_skip must be > 0"
+       if( beta_i < 0.0_dp ) stop "beta_i must be >= 0"
+       if( beta_f < 0.0_dp ) stop "beta_f must be >= 0"
+       if( N_beta <= 1 ) stop "N_beta must be > 1"
+       select case(algorithm)
+       case("metropolis","glauber","heatbath","hmc")
+       case default
+          stop "algorithm must be 'metropolis', 'glauber', 'heatbath' or 'hmc'"
+       end select
+       if( Nhmc < 3 ) stop "Nhmc mut be > 2"
+       if( Thmc <= 0.0_dp ) stop "Thmc mut be > 0"
+       if( tau_Q <= 0 ) stop "tau_Q mut be > 0"
+       
 #ifdef PARALLEL    
     end if
 
@@ -60,6 +82,7 @@ contains
     call co_broadcast(tau_Q, source_image = 1)
     call co_broadcast(Nhmc, source_image = 1)
     call co_broadcast(Thmc, source_image = 1)
+
 #endif
   end subroutine read_input
 

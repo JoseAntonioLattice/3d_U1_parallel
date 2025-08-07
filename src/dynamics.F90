@@ -166,7 +166,7 @@ contains
        beta = [(betai + (i-1)*(betaf-betai)/(Nbeta-1), i=1, Nbeta)]
     else
        allocate(beta(-tau_Q:tau_Q))
-       beta = 0.5*[(betai +betaf + i*(betaf-betai)/tau_Q, i=-tau_Q, tau_Q)]
+       beta = 0.5*[(betai + betaf + i*(betaf-betai)/tau_Q, i=-tau_Q, tau_Q)]
     end if
     call initialize_pbc(L)
         
@@ -315,18 +315,20 @@ contains
           end do
        end do
     end do
-    !print*, "Finished 1st loop"
-    !sync all
-    u(:,Lx+1,1:Ly-1,1:Lz-1)[left] = u(:,1,1:Ly-1,1:Lz-1)
-    u(:,1:Lx-1,Ly+1,1:Lz-1)[front]= u(:,1:Lx-1,1,1:Lz-1)
-    u(:,1:Lx-1,1:Ly-1,Lz+1)[down] = u(:,1:Lx-1,1:Ly-1,1)
+    ! Send faces
+    u(:,   Lx+1, 1:Ly-1, 1:Lz-1)[left]            = u(:, 1     , 1:Ly-1, 1:Lz-1) ! y
+    u(:, 1:Lx-1,   Ly+1, 1:Lz-1)[front]           = u(:, 1:Lx-1, 1     , 1:Lz-1) ! y
+    u(:, 1:Lx-1, 1:Ly-1,   Lz+1)[down]            = u(:, 1:Lx-1, 1:Ly-1, 1     ) ! y 
 
-    u(:,Lx+1,Ly+1,1:Lz-1)[left_front]= u(:,1,1,1:Lz-1)
-    u(:,Lx+1,1:Ly-1,Lz+1)[left_down] = u(:,1,1:Ly-1,1)
-    u(:,1:Lx-1,Ly+1,Lz+1)[front_down]= u(:,1:Lx-1,1,1)
-    
-    u(:,Lx+1,Ly+1,Lz+1)[left_front_down] = u(:,1,1,1)
+    ! Send edges
+    u(:,   Lx+1,   Ly+1, 1:Lz-1)[left_front]      = u(:, 1     , 1     , 1:Lz-1) ! y
+    u(:,   Lx+1, 1:Ly-1,   Lz+1)[left_down]       = u(:, 1     , 1:Ly-1, 1)      ! y
+    u(:, 1:Lx-1,   Ly+1,   Lz+1)[front_down]      = u(:, 1:Lx-1, 1     , 1)      ! y
+
+    ! Send corner
+    u(:,   Lx+1,   Ly+1,   Lz+1)[left_front_down] = u(:, 1     , 1     , 1)      ! y
     sync all
+    
     do mu = 1, 3
        do y = 1, Ly - 1
           do z = 1, Lz - 1
@@ -334,16 +336,16 @@ contains
           end do
        end do
     end do
-    u(:,0,1:Ly-1,1:Lz-1)[right] = u(:,Lx,1:Ly-1,1:Lz-1)
     
-    u(:,Lx,Ly+1,1:Lz-1)[front]      = u(:,Lx,1,1:Lz-1)
-    u(:,0,Ly+1,1:Lz-1)[right_front] = u(:,Lx,1,1:Lz-1)
+    u(:, 0 , 1:Ly-1, 1:Lz-1)[right]          = u(:, Lx, 1:Ly-1, 1:Lz-1) ! y
+    u(:, Lx,   Ly+1, 1:Lz-1)[front]          = u(:, Lx, 1     , 1:Lz-1) ! y
+    u(:, Lx, 1:Ly-1,   Lz+1)[down]           = u(:, Lx, 1:Ly-1, 1)      ! y
     
-    u(:,Lx,1:Ly-1,Lz+1)[down]      = u(:,Lx,1:Ly-1,1) 
-    u(:,0,1:Ly-1,Lz+1)[right_down] = u(:,Lx,1:Ly-1,1)
+    u(:, 0 ,   Ly+1, 1:Lz-1)[right_front]    = u(:, Lx, 1     , 1:Lz-1) ! y
+    u(:, 0 , 1:Ly-1,   Lz+1)[right_down]     = u(:, Lx, 1:Ly-1, 1)      ! y
+    u(:, Lx,   Ly+1,   Lz+1)[front_down]     = u(:, Lx, 1     , 1)      ! y
 
-    u(:,Lx,Ly+1,Lz+1)[front_down]     = u(:,Lx,1,1)
-    u(:,0,Ly+1,Lz+1)[right_front_down]= u(:,Lx,1,1)
+    u(:, 0,   Ly+1,   Lz+1)[right_front_down]= u(:, Lx, 1     , 1)      ! y
     sync all
 
     do mu = 1, 3
@@ -353,16 +355,15 @@ contains
           end do
        end do
     end do
-    u(:,1:Lx-1,0,1:Lz-1)[back] = u(:,1:Lx-1,Ly,1:Lz-1)
+    u(:,   Lx+1, Ly, 1:Lz-1)[left]          = u(:, 1     , Ly, 1:Lz-1) ! y
+    u(:, 1:Lx-1, 0 , 1:Lz-1)[back]          = u(:, 1:Lx-1, Ly, 1:Lz-1) ! y
+    u(:, 1:Lx-1, Ly,   Lz+1)[down]          = u(:, 1:Lx-1, Ly, 1)      ! y
 
-    u(:,Lx+1,Ly,1:Lz-1)[left]     = u(:,Lx,Ly,1:Lz-1)
-    u(:,Lx+1,0,1:Lz-1)[left_back] = u(:,Lx,Ly,1:Lz-1)
+    u(:,   Lx+1, Ly,   Lz+1)[left_down]     = u(:, 1     , Ly, 1)      ! y
+    u(:,   Lx+1, 0 , 1:Lz-1)[left_back]     = u(:, 1     , Ly, 1:Lz-1) ! y
+    u(:, 1:Lx-1, 0 ,   Lz+1)[back_down]     = u(:, 1:Lx-1, Ly, 1)      ! y
     
-    u(:,1:Lx-1,Ly,Lz+1)[down]     = u(:,1:Lx-1,Ly,1)
-    u(:,1:Lx-1,0,Lz+1)[back_down] = u(:,1:Lx-1,Ly,1)
-
-    u(:,Lx+1,Ly,Lz+1)[left_down]    = u(:,1,Ly,1)
-    u(:,Lx+1,0,Lz+1)[left_back_down]= u(:,1,Ly,1)
+    u(:,   Lx+1, 0,   Lz+1)[left_back_down] = u(:, 1     , Ly, 1)      ! y
     sync all
 
     do mu = 1, 3
@@ -372,16 +373,16 @@ contains
           end do
        end do
     end do
-    u(:,1:Lx-1,1:Ly-1,0)[up] = u(:,1:Lx-1,1:Ly-1,Lz)
+    u(:, 1:Lx-1, 1:Ly-1, 0   )[up]            = u(:, 1:Lx-1, 1:Ly-1, Lz) ! y
 
-    u(:,1:Lx-1,Ly+1,Lz)[front]   = u(:,1:Lx-1,1,Lz)
-    u(:,1:Lx-1,Ly+1,0)[front_up] = u(:,1:Lx-1,1,Lz)
+    u(:, 1:Lx-1,   Ly+1, Lz  )[front]         = u(:, 1:Lx-1, 1     , Lz) ! y 
+    u(:, 1:Lx-1,   Ly+1, 0   )[front_up]      = u(:, 1:Lx-1, 1     , Lz) ! y
 
-    u(:,Lx+1,1:Ly-1,Lz)[left] = u(:,1,1:Ly-1,Lz)
-    u(:,0,1:Ly-1,Lz+1)[left_up] = u(:,1,1:Ly-1,Lz)
+    u(:,   Lx+1, 1:Ly-1, Lz  )[left]          = u(:, 1     , 1:Ly-1, Lz) ! y
+    u(:,   Lx+1, 1:Ly-1, 0   )[left_up]       = u(:, 1     , 1:Ly-1, Lz) ! y
 
-    u(:,Lx+1,Ly+1,Lz)[left_front]  = u(:,1,1,Lz)
-    u(:,Lx+1,Ly+1,0)[left_front_up]= u(:,1,1,Lz)
+    u(:,   Lx+1,   Ly+1, Lz  )[left_front]    = u(:, 1     , 1     , Lz) ! y
+    u(:,   Lx+1,   Ly+1, 0   )[left_front_up] = u(:, 1     , 1     , Lz) ! y
     sync all
 
     do mu = 1, 3
@@ -389,14 +390,14 @@ contains
           call alg(u,[Lx,Ly,z],mu,beta)
        end do
     end do
-    u(:,0,Ly,1:Lz-1)[right]    = u(:,Lx,Ly,1:Lz-1)
-    u(:,Lx,0,1:Lz-1)[back]     = u(:,Lx,Ly,1:Lz-1)
-    u(:,0,0,1:Lz-1)[right_back]= u(:,Lx,Ly,1:Lz-1)
+    u(:, 0 , Ly, 1:Lz-1)[right]           = u(:, Lx, Ly, 1:Lz-1) ! y
+    u(:, Lx, 0 , 1:Lz-1)[back]            = u(:, Lx, Ly, 1:Lz-1) ! y
+    u(:, 0 , 0 , 1:Lz-1)[right_back]      = u(:, Lx, Ly, 1:Lz-1) ! y
 
-    u(:,Lx,Ly,Lz+1)[down]         = u(:,Lx,Ly,1)
-    u(:,0,Ly,Lz+1)[right_down]    = u(:,Lx,Ly,1)
-    u(:,Lx,0,Lz+1)[back_down]     = u(:,Lx,Ly,1)
-    u(:,0,0,Lz+1)[right_back_down]= u(:,Lx,Ly,1)
+    u(:, Lx, Ly,   Lz+1)[down]            = u(:, Lx, Ly, 1)      ! y
+    u(:, 0 , Ly,   Lz+1)[right_down]      = u(:, Lx, Ly, 1)      ! y
+    u(:, Lx, 0 ,   Lz+1)[back_down]       = u(:, Lx, Ly, 1)      ! y 
+    u(:, 0 , 0 ,   Lz+1)[right_back_down] = u(:, Lx, Ly, 1)      ! y
     sync all
 
     do mu = 1, 3
@@ -404,14 +405,14 @@ contains
           call alg(u,[Lx,y,Lz],mu,beta)
        end do
     end do
-    u(:,0,1:Ly-1,Lz)[right]  = u(:,Lx,1:Ly-1,Lz)
-    u(:,Lx,1:Ly-1,0)[up]     = u(:,Lx,1:Ly-1,Lz)
-    u(:,0,1:Ly-1,0)[right_up]= u(:,Lx,1:Ly-1,Lz)
+    u(:, 0 , 1:Ly-1, Lz)[right]          = u(:, Lx, 1:Ly-1, Lz) ! y
+    u(:, Lx, 1:Ly-1, 0 )[up]             = u(:, Lx, 1:Ly-1, Lz) ! y
+    u(:, 0 , 1:Ly-1, 0 )[right_up]       = u(:, Lx, 1:Ly-1, Lz) ! y
 
-    u(:,Lx,Ly+1,Lz)[front]       = u(:,Lx,1,Lz)
-    u(:,0,Ly+1,Lz)[right_front]  = u(:,Lx,1,Lz)
-    u(:,Lx,Ly,0)[front_up]       = u(:,Lx,1,Lz)
-    u(:,0,Ly+1,0)[right_front_up]= u(:,Lx,1,Lz)
+    u(:, Lx,   Ly+1, Lz)[front]          = u(:, Lx, 1     , Lz) ! y
+    u(:, 0 ,   Ly+1, Lz)[right_front]    = u(:, Lx, 1     , Lz) ! y
+    u(:, Lx,   Ly+1, 0 )[front_up]       = u(:, Lx, 1     , Lz) ! y
+    u(:, 0 ,   Ly+1, 0 )[right_front_up] = u(:, Lx, 1     , Lz) ! y
     sync all
 
     do mu = 1, 3
@@ -419,29 +420,28 @@ contains
           call alg(u,[x,Ly,Lz],mu,beta)
        end do
     end do
-    u(:,1:Lx-1,0,Lz)[back]  = u(:,1:Lx-1,Ly,Lz)
-    u(:,1:Lx-1,Ly,0)[up]    = u(:,1:Lx-1,Ly,Lz)
-    u(:,1:Lx-1,0,0)[back_up]= u(:,1:Lx-1,Ly,Lz)
+    u(:, 1:Lx-1, 0 , Lz)[back]         = u(:, 1:Lx-1, Ly, Lz) ! y
+    u(:, 1:Lx-1, Ly, 0 )[up]           = u(:, 1:Lx-1, Ly, Lz) ! y
+    u(:, 1:Lx-1, 0 , 0 )[back_up]      = u(:, 1:Lx-1, Ly, Lz) ! y
     
-    u(:,Lx+1,Ly,Lz)[left]      = u(:,1,Ly,Lz)
-    u(:,Lx+1,Ly,0)[left_up]    = u(:,1,Ly,Lz)
-    u(:,Lx+1,0,Lz)[left_back]  = u(:,1,Ly,Lz)
-    u(:,Lx+1,0,0)[left_back_up]= u(:,1,Ly,Lz)
+    u(:,   Lx+1, Ly, Lz)[left]         = u(:, 1     , Ly, Lz) ! y
+    u(:,   Lx+1, Ly, 0 )[left_up]      = u(:, 1     , Ly, Lz) ! y
+    u(:,   Lx+1, 0 , Lz)[left_back]    = u(:, 1     , Ly, Lz) ! y
+    u(:,   Lx+1, 0 , 0 )[left_back_up] = u(:, 1     , Ly, Lz) ! y
     sync all
 
     do mu = 1, 3
        call alg(u,[Lx,Ly,Lz],mu,beta)
     end do
-    u(:,0,Ly,Lz)[right]= u(:,Lx,Ly,Lz)
-    u(:,Lx,0,Lz)[back] = u(:,Lx,Ly,Lz)
-    u(:,Lx,Ly,0)[up]   = u(:,Lx,Ly,Lz)
+    u(:,0 ,Ly,Lz)[right]         = u(:,Lx,Ly,Lz)
+    u(:,Lx,0 ,Lz)[back]          = u(:,Lx,Ly,Lz)
+    u(:,Lx,Ly,0 )[up]            = u(:,Lx,Ly,Lz)
 
-    u(:,0,0,Lz)[right_back]= u(:,Lx,Ly,Lz)
-    u(:,0,Ly,0)[right_up]  = u(:,Lx,Ly,Lz)
-    u(:,Lx,0,0)[back_up]   = u(:,Lx,Ly,Lz)
-    sync all
-
-    u(:,0,0,0)[right_back_up] = u(:,Lx,Ly,Lz)
+    u(:,0 ,0 ,Lz)[right_back]    = u(:,Lx,Ly,Lz)
+    u(:,0 ,Ly,0 )[right_up]      = u(:,Lx,Ly,Lz)
+    u(:,Lx,0 ,0 )[back_up]       = u(:,Lx,Ly,Lz)
+   
+    u(:,0 ,0 ,0 )[right_back_up] = u(:,Lx,Ly,Lz)
     sync all
 #endif
     

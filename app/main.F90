@@ -12,6 +12,8 @@ program U1_3d
   character(:), allocatable :: filename
   character(100), allocatable :: directories(:)
 
+  call random_init(.false.,.true.)
+  
 #ifdef PARALLEL
   if(this_image() == 1 ) print*, "3d U(1). Parallel"
 #elif SERIAL
@@ -29,7 +31,8 @@ program U1_3d
 #ifdef PARALLEL
   if( this_image() == 1)then
 #endif
-     call create_files(directories,filename)
+     if(inCluster) filename = outputfilename
+     call create_files(directories,filename,inCluster)
      print*, "FILENAME: ", filename
 #ifdef PARALLEL
   end if

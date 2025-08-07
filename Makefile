@@ -35,7 +35,7 @@ build/%.o: src/%.F90
 	$(FC) -D$(PRE) -O3 -c -J build -I build -I $(INC) $< -o $@
 
 run:
-	{ echo $(c1) $(c2) $(c3) ; echo input/input_parameters.nml; echo data/data_1x1x2.dat; } | LD_LIBRARY_PATH=$(LIB) cafrun -n $$(( $(c1)*$(c2)*$(c3) )) build/$(program) 
+	{ echo $(c1) $(c2) $(c3) ; echo input/input_parameters.nml; echo data_$(c1)x$(c2)x$(c3)_$(PARALLEL).dat; } | LD_LIBRARY_PATH=$(LIB) cafrun -n $$(( $(c1)*$(c2)*$(c3) )) build/$(program) 
 
 
 run_test:
@@ -43,7 +43,7 @@ run_test:
 	build/test
 
 run_serial:
-	{ echo input/input_parameters.nml; echo data/data_serial.dat; } | LD_LIBRARY_PATH=$(LIB) build/$(program) 
+	{ echo input/input_parameters.nml; echo data_serial.dat; } | LD_LIBRARY_PATH=$(LIB) build/$(program) 
 
 
 clean:

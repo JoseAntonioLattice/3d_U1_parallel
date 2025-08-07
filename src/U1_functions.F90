@@ -1,3 +1,9 @@
+#define POINT(a,b,c) [a,b,c]
+#if PARALLEL == 1
+#undef POINT
+#define POINT(a,b,c) [thisimage,a,b,c]
+#endif
+
 module U1_functions
 
   use iso_fortran_env, only : dp => real64, i4 => int32
@@ -13,14 +19,11 @@ contains
     real(dp) :: plaquette_value
 #ifdef SERIAL
     complex(dp), dimension(:,:,:,:), intent(in) :: u
-    integer(i4), dimension(3) :: point
 #elif PARALLEL == 1
     complex(dp), dimension(:,:,:,:), intent(in) :: u[*]
     integer(i4) :: thisimage
-    integer(i4), dimension(0:3) :: point
 #elif PARALLEL == 2
     complex(dp), dimension(:,0:,0:,0:), intent(in) :: u
-    integer(i4), dimension(3) :: point
 #endif
     integer(i4) :: Lx, Ly, Lz
     integer(i4) :: x,y,z, mu, nu
@@ -44,12 +47,7 @@ contains
           do z = 1, Lz
              do mu = 1, 2
                 do nu = mu+1, 3
-#if defined(SERIAL) || PARALLEL == 2
-                   point = [x,y,z]
-#elif PARALLEL == 1
-                   point = [thisimage,x,y,z]
-#endif
-                   plaquette_value = plaquette_value + real(plaquette(u,point,mu,nu))
+                   plaquette_value = plaquette_value + real(plaquette(u,POINT(x,y,z),mu,nu))
                 end do
              end do
           end do
@@ -130,14 +128,14 @@ contains
     real(dp) :: topological_charge_density
 #ifdef SERIAL
     complex(dp), dimension(:,:,:,:), intent(in) :: u
-    integer(i4), dimension(3) :: point, x4, x5, x6
+    integer(i4), dimension(3) :: x4, x5, x6
 #elif PARALLEL == 1
     complex(dp), dimension(:,:,:,:), intent(in) :: u[*]
-    integer(i4), dimension(0:3) :: point, x4, x5, x6
+    integer(i4), dimension(0:3) :: x4, x5, x6
     integer(i4) :: thisimage
 #elif PARALLEL == 2
     complex(dp), dimension(:,0:,0:,0:), intent(in) :: u
-    integer(i4), dimension(3) :: point, x4, x5, x6
+    integer(i4), dimension(3) :: x4, x5, x6
 #endif
     integer(i4) :: x, y, z, Lx, Ly, Lz
     complex(dp) :: plq1, plq2, plq3, plq4, plq5, plq6
@@ -159,18 +157,13 @@ contains
     do x = 1, Lx
        do y = 1, Ly
           do z = 1, Lz
-#if defined(SERIAL) || PARALLEL == 2
-             point = [x,y,z]
-#elif PARALLEL == 1
-             point = [thisimage,x,y,z]
-#endif
-             plq1 = conjg(plaquette(u,point,1,2))
-             plq2 = plaquette(u,point,1,3)
-             plq3 = conjg(plaquette(u,point,2,3))
+             plq1 = conjg(plaquette(u,POINT(x,y,z),1,2))
+             plq2 = plaquette(u,POINT(x,y,z),1,3)
+             plq3 = conjg(plaquette(u,POINT(x,y,z),2,3))
 
-             x4 = ip(point,1)
-             x5 = ip(point,2)
-             x6 = ip(point,3)
+             x4 = ip(POINT(x,y,z),1)
+             x5 = ip(POINT(x,y,z),2)
+             x6 = ip(POINT(x,y,z),3)
 
              plq4 = plaquette(u,x4,2,3)
              plq5 = conjg(plaquette(u,x5,1,3))
