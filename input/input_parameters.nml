@@ -1,7 +1,7 @@
 &parametersfile
 inCluster = T
-L = 16,16,16
-N_thermalization = 1000
+L = 8,8,8
+N_thermalization = 100
 N_measurements = 100,
 N_skip = 10,
 isbeta = F
@@ -13,5 +13,5 @@ Nhmc=10
 Thmc = 1.0
 start = "cold"
 equilibrium=T
-tau_Q = 16
+tau_Q = 8
 /

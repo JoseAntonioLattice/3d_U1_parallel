@@ -1,8 +1,37 @@
+#define POINT(A,B,C) [A,B,C]
+#define DIM :,:,:,:
+#define DIM2 :,:
+#define CODIM [*]
+#define ALLCODIM [:]
+
+#if defined(SERIAL)
+
+#undef CODIM
+#define CODIM
+
+#undef ALLCODIM
+#define ALLCODIM
+
+#elif PARALLEL == 1
+
+#undef POINT
+#define POINT(A,B,C) [thisimage,A,B,C]
+
+#elif PARALLEL == 2
+
+#undef DIM
+#define DIM :,0:,0:,0:
+
+#endif
+
 module dynamics
   use iso_fortran_env, only : dp => real64, i4 => int32
   use lua
   use constants, only : twopi
   use hybridMC, only : hmc
+#if PARALLEL == 2
+  use hybridMC, only : sync_sublattice
+#endif
   use parallel_utils
   implicit none
 
@@ -49,8 +78,6 @@ contains
     integer(i4), dimension(3) :: a
      
    
-    integer(i4) :: xc(3,2)
-
     Lx = L(1)/d(1)
     Ly = L(2)/d(2)
     Lz = L(3)/d(3)
@@ -173,22 +200,16 @@ contains
   end subroutine set_memory
 #endif
 
-  subroutine thermalization(start,algorithm,u,beta,N_thermalization,isbeta)
-    character(*), intent(in) :: start, algorithm
-#ifdef SERIAL
-    complex(dp), intent(inout) :: u(:,:,:,:)
-#elif PARALLEL
-    complex(dp), intent(inout) :: u(:,:,:,:)[*]
-#endif
+  subroutine thermalization(algorithm,u,beta,N_thermalization,isbeta)
+    character(*), intent(in) :: algorithm
+    complex(dp), intent(inout) :: u(:,:,:,:)CODIM
     real(dp), intent(in) :: beta
     logical, intent(in) :: isbeta 
     integer(i4) :: N_thermalization
     integer(i4) :: i_sweeps
     
-
-    call select_start(u,start)
     do i_sweeps = 1, N_thermalization
-       call sweeps(trim(algorithm),u,beta,isbeta)
+       call sweeps(algorithm,u,beta,isbeta)
     end do
 
   end subroutine thermalization
@@ -196,13 +217,8 @@ contains
   subroutine measurements(algorithm,u,beta,N_measurements,Nskip,plq,top_den,isbeta)
     use U1_functions
     character(*), intent(in) :: algorithm
-#ifdef SERIAL
-    complex(dp), intent(inout) :: u(:,:,:,:)
-    real(dp) :: plq(:), top_den(:)
-#elif PARALLEL
-    complex(dp), intent(inout) :: u(:,:,:,:)[*]
-    real(dp) :: plq(:)[*], top_den(:)[*]
-#endif
+    complex(dp), intent(inout) :: u(:,:,:,:)CODIM
+    real(dp), intent(out) :: plq(:)CODIM, top_den(:)CODIM
     real(dp), intent(in) :: beta
     integer(i4),intent(in) :: N_measurements, Nskip
     logical, intent(in) :: isbeta
@@ -210,7 +226,7 @@ contains
 
     do i_sweeps = 1, N_measurements
        do iskip = 1, Nskip
-          call sweeps(trim(algorithm),u,beta,isbeta)
+          call sweeps(algorithm,u,beta,isbeta)
        end do
        plq(i_sweeps) = plaquette_value(u)
        top_den(i_sweeps) = topological_charge_density(u)
@@ -219,7 +235,6 @@ contains
        sync all
        call co_sum(plq(i_sweeps),result_image = 1)
        call co_sum(top_den(i_sweeps),result_image = 1)
-       !if(this_image() == 1) print*, top_den(i_sweeps)/twopi
 #endif
     end do
     
@@ -228,12 +243,7 @@ contains
   subroutine sweeps(algorithm,u,beta,isbeta)
     use parameters, only : Nhmc, Thmc
     character(*), intent(in) :: algorithm
-
-#ifdef SERIAL
-    complex(dp), intent(inout) :: u(:,:,:,:)
-#elif PARALLEL
-    complex(dp), intent(inout) :: u(:,:,:,:)[*]
-#endif
+    complex(dp), intent(inout) :: u(:,:,:,:)CODIM
     real(dp), intent(in) :: beta
     real(dp) :: b 
     logical :: isbeta 
@@ -255,11 +265,7 @@ contains
           call sweeps_alg(glauber,u,b)
        end if
     case("heatbath")
-       if( .not. isbeta .and. b < epsilon(1.0_dp) ) then
-          !call sweeps_alg(zero_temp_heatbath,u,b)
-       else
-          call sweeps_alg(heatbath,u,b)
-       end if
+       call sweeps_alg(heatbath,u,b)
     case("hmc")
        call hmc(u,b,Thmc,Nhmc)
     end select
@@ -271,16 +277,9 @@ contains
 
   subroutine sweeps_alg(alg,u,beta)
     procedure(lua_function) :: alg
-#ifdef SERIAL
-    complex(dp), intent(inout) :: u(:,:,:,:)
-    integer(i4) :: point(3)
-#elif PARALLEL == 1
-    complex(dp), intent(inout) :: u(:,:,:,:)[*]
-    integer(i4) :: point(0:3)
+    complex(dp), intent(inout) :: u(DIM)CODIM
+#if PARALLEL == 1
     integer :: thisimage
-#elif PARALLEL == 2
-    complex(dp), intent(inout) :: u(:,0:,0:,0:)[*]
-    integer(i4) :: point(3)
 #endif
     real(dp), intent(in) :: beta
     integer(i4) :: x,y,z,mu
@@ -294,12 +293,7 @@ contains
        do x = 1, Lx
           do y = 1, Ly
              do z = 1, Lz
-#if defined(SERIAL) 
-                point = [x,y,z]
-#elif PARALLEL == 1
-                point = [thisimage,x,y,z]
-#endif
-                call alg(u,point,mu,beta)
+                call alg(u,POINT(x,y,z),mu,beta)
              end do
           end do
        end do
@@ -453,37 +447,35 @@ contains
     use statistics
 
     character(*), intent(in) :: start, algorithm
-
-#ifdef SERIAL
-    complex(dp), intent(inout) :: u(:,:,:,:)
-    real(dp), dimension(N_measurements) :: plq, top_den
-#elif PARALLEL
-    complex(dp), intent(inout) :: u(:,:,:,:)[*]
-    real(dp), dimension(:), codimension[:], allocatable :: plq, top_den
-#endif
+    complex(dp), intent(inout) :: u(:,:,:,:)CODIM
     integer(i4), intent(in) :: N_thermalization, Nskip, N_measurements, outunit
     real(dp), intent(in) :: beta(:)
     logical, intent(in) :: isbeta
+    real(dp), allocatable :: plq(:)ALLCODIM, top_den(:)ALLCODIM
     integer(i4) :: ib, i_sweeps
-    real(dp) :: err_plq(2), err_top(2)
+    real(dp) :: err_plq(2), err_top(2), volume, avrplq, avrtop
 
-#ifdef PARALLEL
-    allocate(plq(N_measurements)[*])
-    allocate(top_den(N_measurements)[*])
+    allocate(plq(N_measurements)CODIM)
+    allocate(top_den(N_measurements)CODIM)
+
+    volume = product(L)
+    call select_start(u,start)
+#if PARALLEL == 2
+    call sync_sublattice(u)
 #endif
     
     do ib = 1, size(beta)
-       call thermalization(trim(start),trim(algorithm),u,beta(ib),N_thermalization,isbeta)
-       call measurements(trim(algorithm),u,beta(ib),N_measurements,Nskip,plq,top_den,isbeta)
+       call thermalization(algorithm,u,beta(ib),N_thermalization,isbeta)
+       call measurements(algorithm,u,beta(ib),N_measurements,Nskip,plq,top_den,isbeta)
 #ifdef PARALLEL
        if(this_image() == 1)then
 #endif
-          err_plq = jackknife_max(plq)/(3*product(L))
-          err_top = jackknife_max(top_den)/(twopi*product(L))
-          print*, beta(ib), avr(plq)/(3*product(L)), err_plq(1), &
-               avr(top_den)/(twopi*product(L)), err_top(1)
-          write(outunit,*) beta(ib), avr(plq)/(3*product(L)), err_plq(1), &
-               avr(top_den)/(twopi*product(L)), err_top(1)
+          avrplq = avr(plq)/(3*volume)
+          avrtop = avr(top_den)/(twopi*volume) 
+          err_plq = jackknife_max(plq)/(3*volume)
+          err_top = jackknife_max(top_den)/(twopi*volume)
+          print*,          beta(ib), avrplq, err_plq(1), avrtop, err_top(1)
+          write(outunit,*) beta(ib), avrplq, err_plq(1), avrtop, err_top(1)
           flush(outunit)
 #ifdef PARALLEL
        end if
@@ -496,28 +488,24 @@ contains
     use parameters, only : L
     use statistics
     character(*), intent(in) :: start, algorithm
-
-#ifdef SERIAL
-    complex(dp), intent(inout) :: u(:,:,:,:)
-    real(dp), dimension(-tau_Q:tau_Q,N_measurements) :: plq, top_den
-#elif PARALLEL
-    complex(dp), intent(inout) :: u(:,:,:,:)[*]
-    real(dp), dimension(:,:), codimension[:], allocatable :: plq, top_den
-#endif
+    complex(dp), intent(inout) :: u(:,:,:,:)CODIM
     integer(i4), intent(in) :: tau_Q, N_thermalization, N_measurements,outunit
     real(dp), intent(in) :: beta(-tau_Q:tau_Q)
     logical, intent(in) :: isbeta
+    real(dp), allocatable :: plq(DIM2)ALLCODIM, top_den(DIM2)ALLCODIM
     integer(i4) :: ib, i_sweeps
-    
-    real(dp) :: err_plq(2), err_top(2)
+    real(dp) :: volume,avrplq, avrtop,err_plq(2), err_top(2)
 
-#ifdef PARALLEL
-    allocate(plq(-tau_Q:tau_Q,N_measurements)[*])
-    allocate(top_den(-tau_Q:tau_Q,N_measurements)[*])
-#endif
-    
+    allocate(plq(-tau_Q:tau_Q,N_measurements)CODIM)
+    allocate(top_den(-tau_Q:tau_Q,N_measurements)CODIM)
+
+    volume = product(L)
     do i_sweeps = 1, N_measurements
-       call thermalization(start,algorithm,u,beta(-tau_Q),N_thermalization,isbeta)
+       call select_start(u,start)
+#if PARALLEL == 2
+       call sync_sublattice(u)
+#endif
+       call thermalization(algorithm,u,beta(-tau_Q),N_thermalization,isbeta)
        do ib = -tau_Q, tau_Q
           call sweeps(algorithm,u,beta(ib),isbeta)
           plq(ib,i_sweeps) = plaquette_value(u)
@@ -534,12 +522,12 @@ contains
 #ifdef PARALLEL
        if(this_image() == 1) then
 #endif
-          err_plq = jackknife_max(plq(ib,:))/(3*product(L))
-          err_top = jackknife_max(top_den(ib,:))/(twopi*product(L))
-          print*, beta(ib),ib, avr(plq(ib,:))/(3*product(L)), err_plq(1), &
-               avr(top_den(ib,:))/(twopi*product(L)), err_top(1)
-          write(outunit,*) ib, avr(plq(ib,:))/(3*product(L)), err_plq(1), &
-               avr(top_den(ib,:))/(twopi*product(L)), err_top(1)
+          avrplq = avr(plq(ib,:))/(3*volume)
+          avrtop = avr(top_den(ib,:))/(twopi*volume)
+          err_plq = jackknife_max(plq(ib,:))/(3*volume)
+          err_top = jackknife_max(top_den(ib,:))/(twopi*volume)
+          print*,          beta(ib), ib, avrplq, err_plq(1), avrtop, err_top(1)
+          write(outunit,*) beta(ib), ib, avrplq, err_plq(1), avrtop, err_top(1)
 #ifdef PARALLEL
        endif
 #endif

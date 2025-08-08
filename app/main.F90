@@ -22,29 +22,25 @@ program U1_3d
  
   call read_input()
   call set_memory(u,beta,N_measurements,N_beta,beta_i,beta_f,equilibrium,tau_Q)
-  if(equilibrium)then
-     directories = [character(100) :: "data","equilibrium",algorithm,"L="//int2str(L(1)) ]
-  else
-     directories = [character(100) :: "data","out_equilibrium",algorithm,"L="//int2str(L(1)),"tau_Q="//int2str(tau_Q) ]
-  end if
   
-#ifdef PARALLEL
-  if( this_image() == 1)then
-#endif
-     if(inCluster) filename = outputfilename
-     call create_files(directories,filename,inCluster)
-     print*, "FILENAME: ", filename
-#ifdef PARALLEL
-  end if
-  sync all
-#endif
 
 #ifdef PARALLEL
   if(this_image() == 1) then
 #endif
+     directories = [character(100) :: "data","equilibrium",algorithm, &
+          "Lx="//int2str(L(1)), "Ly="//int2str(L(2)), "Lz="//int2str(L(3))]
+     if(.not. equilibrium) then
+        directories(2) = "out_equilibrium"
+        directories = [character(100) :: directories,"tau_Q="//int2str(tau_Q) ]
+     end if
+     
+     if(inCluster) filename = outputfilename
+     call create_files(directories,filename,inCluster)
+     print*, "FILENAME: ", filename
      open(newunit = outunit, file = filename, status = "unknown", action = "write")
 #ifdef PARALLEL
   end if
+  sync all
 #endif
   CALL SYSTEM_CLOCK(COUNT_RATE=rate, COUNT_MAX=max)
   CALL SYSTEM_CLOCK(COUNT=ti)
