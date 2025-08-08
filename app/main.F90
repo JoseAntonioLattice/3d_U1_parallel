@@ -58,6 +58,7 @@ program U1_3d
      write(outunit,"(3/,a,f15.8)") "elapsed time: ", real(tf - ti)/rate
 #ifdef PARALLEL
      write(outunit,*) "threads: ", num_images()
+     write(outunit,*) "d = ", d
 #endif
      close(outunit)
 #ifdef PARALLEL
