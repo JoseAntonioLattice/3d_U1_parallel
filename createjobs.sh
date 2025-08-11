@@ -21,6 +21,6 @@ cat <<EOF > jobs/$filename-$(($1*$2*$3)).slurm
 module load lamod/coarrays/2.10 
 cd ~/3d_U1_parallel
 # Comando para ejecutar tu programa
-for i in 8 16 32 64 128 256 512; do { echo $1 $2 $3; echo input/parameters_L_$4_tau_$i_$6.dat; echo measurements_$7.dat; } | LD_LIBRARY_PATH=$HOME/Fortran/lib cafrun -n $(( $1*$2*$3 )) build/3d_U1_parallel; done
+for i in 8 16 32 64 128 256 512; do { echo $1 $2 $3; echo input/parameters_L_$4_tau_\$i_$6.dat; echo measurements_$7.dat; } | LD_LIBRARY_PATH=$HOME/Fortran/lib cafrun -n $(( $1*$2*$3 )) build/3d_U1_parallel; done
 
 EOF
