@@ -1,4 +1,4 @@
-src_files = parallel_utils indices files pbc arrays parameters U1_functions hybridMC lua dynamics main
+src_files = constants number2string check_files_directories random matlib statistics parallel_utils indices files pbc arrays parameters U1_functions hybridMC lua dynamics main
 obj_files = $(patsubst %, build/%.o, $(src_files) )
 
 LIB = ~/Fortran/lib/
@@ -26,7 +26,7 @@ endif
 
 
 build/$(program): $(obj_files)
-	$(FC) $^ -o $@ -L $(LIB) -lrandom -lconstants -lfiles -lnum2str -lstats
+	$(FC) $^ -o $@ #-L $(LIB) -lrandom -lconstants -lfiles -lnum2str -lstats
 
 build/main.o: app/main.F90
 	$(FC) -D$(PRE) -O3 -c -I build -I $(INC) $< -o $@
@@ -35,7 +35,7 @@ build/%.o: src/%.F90
 	$(FC) -D$(PRE) -O3 -c -J build -I build -I $(INC) $< -o $@
 
 run:
-	{ echo $(c1) $(c2) $(c3) ; echo input/input_parameters.nml; echo data_$(c1)x$(c2)x$(c3)_$(PARALLEL).dat; } | LD_LIBRARY_PATH=$(LIB) cafrun -n $$(( $(c1)*$(c2)*$(c3) )) build/$(program) 
+	{ echo $(c1) $(c2) $(c3) ; echo input/input_parameters.nml; echo data_$(c1)x$(c2)x$(c3)_$(PARALLEL).dat; } | cafrun -n $$(( $(c1)*$(c2)*$(c3) )) build/$(program) 
 
 
 run_test:
