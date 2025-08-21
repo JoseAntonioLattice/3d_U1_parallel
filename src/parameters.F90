@@ -13,6 +13,7 @@ module parameters
   integer(i4) :: N_measurements
   integer(i4) :: N_skip
   logical :: isbeta
+  logical :: readbeta
   real(dp) :: beta_i, beta_f
   integer(i4) :: n_beta
   character(30) :: algorithm
@@ -20,17 +21,17 @@ module parameters
   real(dp) :: Thmc
   character(10) :: start
   logical :: equilibrium
+  logical :: savelastconf, readconfig, save_thermalized_conf
   integer(i4) :: tau_Q
   integer(i4) :: inunit,outunit
-  character(99) :: inputfilename, outputfilename
+  character(99) :: inputfilename, outputfilename, betafile
     
   
-  namelist /parametersfile/ inCluster,L,N_thermalization,N_measurements,N_skip, &
-       isbeta, beta_i, beta_f, n_beta, algorithm,Nhmc,Thmc, start, equilibrium, tau_Q
+  namelist /parametersfile/ inCluster,L,save_thermalized_conf,N_thermalization,N_measurements,N_skip, &
+       isbeta, readbeta, beta_i, beta_f, n_beta, algorithm,Nhmc,Thmc, start, equilibrium, tau_Q, savelastconf, readconfig
 contains
 
-  subroutine read_input()
-
+  subroutine read_input()    
 #ifdef PARALLEL
     if(this_image() == 1) then
        read(*,*) d
@@ -41,11 +42,14 @@ contains
        open(newunit = inunit,file = trim(inputfilename), status = 'old', action = "read")
        read(inunit, nml = parametersfile)
 
-       if(InCluster) then
-          read(*,'(a)') outputfilename
-          print*, 'Enter output file: ', trim(outputfilename)
-       endif
-
+       
+       
+       read(*,'(a)') outputfilename
+       print*, 'Enter output file: ', trim(outputfilename)
+       
+       read(*,'(a)') betafile
+       print*, 'Enter beta/temperature file: ', trim(betafile)
+       
        write(*,nml = parametersfile)
 
        if( any(L<=0) ) stop "All elements in L must be > 0"
@@ -82,7 +86,10 @@ contains
     call co_broadcast(tau_Q, source_image = 1)
     call co_broadcast(Nhmc, source_image = 1)
     call co_broadcast(Thmc, source_image = 1)
-
+    call co_broadcast(savelastconf, source_image = 1)
+    call co_broadcast(readconfig, source_image = 1)
+    call co_broadcast(save_thermalized_conf, source_image = 1)
+    
 #endif
   end subroutine read_input
 

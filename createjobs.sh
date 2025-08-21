@@ -1,13 +1,13 @@
 #!/bin/bash
 
 
-filename=3d_U1_parallel_2_$1x$2x$3
-jobname=3dU1_2_$1x$2x$3-$7
+filename=3dU1-$1x$2x$3_L$4_tau$5_$6-$7
+jobname=3dU1_$1x$2x$3-L$4_tau$5_$6-$7
 #touch $filename$1.slurm
 
 nodes=$8
 
-cat <<EOF > jobs/$filename-$(($1*$2*$3)).slurm
+cat <<EOF > jobs/$filename.slurm
 #!/bin/bash
 #SBATCH --job-name=logs/$jobname 			# Nombre del trabajo
 #SBATCH --output=logs/$jobname.log   		# Archivo de registro de salida
@@ -21,6 +21,5 @@ cat <<EOF > jobs/$filename-$(($1*$2*$3)).slurm
 module load lamod/coarrays/2.10 
 cd ~/3d_U1_parallel
 # Comando para ejecutar tu programa
-for i in 8 16 32 64 128 256 512; do { echo $1 $2 $3; echo input/parameters_L_$4_tau_\$i_$6.dat; echo measurements_$7.dat; } | LD_LIBRARY_PATH=$HOME/Fortran/lib cafrun -n $(( $1*$2*$3 )) build/3d_U1_parallel; done
+{ echo $1 $2 $3; echo "input/parameters_L_$4_tau_$5_$6.dat"; echo measurements_$7.dat; echo input/temperatures.dat; } | cafrun -n $(( $1*$2*$3 )) build/3d_U1_parallel_2
 
-EOF

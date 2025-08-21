@@ -21,7 +21,7 @@ program U1_3d
 #endif
  
   call read_input()
-  call set_memory(u,beta,N_measurements,N_beta,beta_i,beta_f,equilibrium,tau_Q)
+  call set_memory(u,beta,N_measurements,N_beta,beta_i,beta_f,equilibrium,tau_Q,readbeta,betafile)
   
 
 #ifdef PARALLEL
@@ -45,9 +45,17 @@ program U1_3d
   CALL SYSTEM_CLOCK(COUNT_RATE=rate, COUNT_MAX=max)
   CALL SYSTEM_CLOCK(COUNT=ti)
   if(equilibrium) then
-     call eq(start,algorithm,u,beta,N_thermalization,N_skip,N_measurements,outunit,isbeta)
+     if(save_thermalized_conf) then
+        do ib = 1, size(beta)
+           call select_start(u,"hot")
+           call thermalization("heatbath",u,beta(ib),N_thermalization,isbeta)
+           call save_configuration(u,beta(ib),isbeta,L)
+        end do
+     else
+        call eq(start,algorithm,u,beta,N_thermalization,N_skip,N_measurements,outunit,isbeta,savelastconf)
+     end if
   else
-     call out_eq(start,algorithm,u,beta,tau_Q, N_thermalization,N_measurements,outunit,isbeta)
+     call out_eq(start,algorithm,u,beta,tau_Q, N_thermalization,N_measurements,outunit,isbeta,readconfig)
   end if
   CALL SYSTEM_CLOCK(COUNT=tf)
   

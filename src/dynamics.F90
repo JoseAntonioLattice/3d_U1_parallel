@@ -3,7 +3,7 @@
 #define DIM2 :,:
 #define CODIM [*]
 #define ALLCODIM [:]
-
+#define DIM3 3,Lx,Ly,Lz
 #if defined(SERIAL)
 
 #undef CODIM
@@ -22,6 +22,8 @@
 #undef DIM
 #define DIM :,0:,0:,0:
 
+#undef DIM3
+#define DIM3 3,0:Lx+1,0:Ly+1,0:Lz+1
 #endif
 
 module dynamics
@@ -64,19 +66,19 @@ contains
   end subroutine select_start
   
 #ifdef PARALLEL  
-  subroutine set_memory(u,beta,N_measurements,Nbeta,betai,betaf,equilibrium,tau_Q)
+  subroutine set_memory(u,beta,N_measurements,Nbeta,betai,betaf,equilibrium,tau_Q,readbeta,betafile)
     use indices
     use pbc
     use parameters, only : L, d
     complex(dp), intent(inout), allocatable, dimension(:,:,:,:) :: u[:]
     real(dp), intent(inout), allocatable, dimension(:) :: beta
     integer(i4), intent(in) :: N_measurements, Nbeta, tau_Q
-    logical, intent(in) :: equilibrium
-    real(dp) :: betai, betaf
-    
-    integer(i4) :: i
+    logical, intent(in) :: equilibrium, readbeta
+    real(dp), intent(in) :: betai, betaf
+    character(*), intent(in) :: betafile
+    integer(i4) :: i, betaunit, io
     integer(i4), dimension(3) :: a
-     
+    real(dp) :: b
    
     Lx = L(1)/d(1)
     Ly = L(2)/d(2)
@@ -90,14 +92,24 @@ contains
 #endif
 
     if(equilibrium)then
-       allocate(beta(Nbeta))
-       beta = [(betai + (i-1)*(betaf-betai)/(Nbeta-1), i=1, Nbeta)]
+       if(readbeta) then
+          open(newunit=betaunit, file = betafile, action = 'read', status = 'old', iostat = io)
+          beta = [real(dp) ::]
+          print*, 'iostat = ',io
+          do while(io == 0)
+             read(betaunit,*,iostat=io) b
+             if(io /= 0) exit
+             beta = [beta, b]
+          end do
+       else
+          allocate(beta(Nbeta))
+          beta = [(betai + (i-1)*(betaf-betai)/(Nbeta-1), i=1, Nbeta)]
+       end if
     else
        allocate(beta(-tau_Q:tau_Q))
        beta = 0.5*[(betai +betaf + i*(betaf-betai)/tau_Q, i=-tau_Q, tau_Q)]
     end if
 
-       
     a = get_index_array(this_image(),d)
 
     allocate(ip1_c(d(1)),im1_c(d(1)))
@@ -170,17 +182,18 @@ contains
 #endif
 
 #ifdef SERIAL
-  subroutine set_memory(u,beta,N_measurements,Nbeta,betai,betaf,equilibrium,tau_Q)
+  subroutine set_memory(u,beta,N_measurements,Nbeta,betai,betaf,equilibrium,tau_Q,readbeta,betafile)
     use pbc
     use parameters, only : L
 
     complex(dp), intent(inout), allocatable, dimension(:,:,:,:) :: u
     real(dp), intent(inout), allocatable, dimension(:) :: beta
     integer(i4), intent(in) :: N_measurements, Nbeta, tau_Q
-    logical :: equilibrium
-    real(dp) :: betai, betaf
-    
-    integer(i4) :: i
+    logical, intent(in) :: equilibrium, readbeta
+    real(dp), intent(in) :: betai, betaf
+    character(*), intent(in) :: betafile
+    real(dp) :: b
+    integer(i4) :: i, betaunit, io
 
     allocate(u(3,L(1),L(2),L(3)))
 
@@ -189,8 +202,20 @@ contains
     Lz = L(3)
     
     if(equilibrium)then
-       allocate(beta(Nbeta))
-       beta = [(betai + (i-1)*(betaf-betai)/(Nbeta-1), i=1, Nbeta)]
+       if(readbeta) then
+          open(newunit=betaunit, file = betafile, action = 'read', status = 'old', iostat = io)
+          beta = [real(dp) ::]
+          print*, 'iostat = ',io
+          do while(io == 0)
+             read(betaunit,*,iostat=io) b
+             if(io /= 0) exit
+             beta = [beta, b]
+          end do
+          print*, beta
+       else
+          allocate(beta(Nbeta))
+          beta = [(betai + (i-1)*(betaf-betai)/(Nbeta-1), i=1, Nbeta)]
+       end if
     else
        allocate(beta(-tau_Q:tau_Q))
        beta = 0.5*[(betai + betaf + i*(betaf-betai)/tau_Q, i=-tau_Q, tau_Q)]
@@ -442,7 +467,8 @@ contains
   end subroutine sweeps_alg
   
   
-  subroutine eq(start,algorithm,u,beta, N_thermalization,Nskip,N_measurements,outunit,isbeta)
+  subroutine eq(start,algorithm,u,beta, N_thermalization,Nskip,N_measurements,outunit,isbeta,savelastconf)
+    use save_configurations
     use parameters, only : L
     use statistics
 
@@ -450,7 +476,7 @@ contains
     complex(dp), intent(inout) :: u(:,:,:,:)CODIM
     integer(i4), intent(in) :: N_thermalization, Nskip, N_measurements, outunit
     real(dp), intent(in) :: beta(:)
-    logical, intent(in) :: isbeta
+    logical, intent(in) :: isbeta, savelastconf
     real(dp), allocatable :: plq(:)ALLCODIM, top_den(:)ALLCODIM
     integer(i4) :: ib, i_sweeps
     real(dp) :: err_plq(2), err_top(2), volume, avrplq, avrtop
@@ -477,6 +503,8 @@ contains
           print*,          beta(ib), avrplq, err_plq(1), avrtop, err_top(1)
           write(outunit,*) beta(ib), avrplq, err_plq(1), avrtop, err_top(1)
           flush(outunit)
+          if(savelastconf) call save_configuration(u,beta(ib),isbeta,L)
+             
 #ifdef PARALLEL
        end if
 #endif
@@ -484,29 +512,45 @@ contains
     
   end subroutine eq
   
-  subroutine out_eq(start,algorithm,u,beta, tau_Q, N_thermalization, N_measurements,outunit,isbeta)
+  subroutine out_eq(start,algorithm,u,beta, tau_Q, N_thermalization, N_measurements,outunit,isbeta,readconfig)
     use parameters, only : L
     use statistics
+    use save_configurations
     character(*), intent(in) :: start, algorithm
     complex(dp), intent(inout) :: u(:,:,:,:)CODIM
     integer(i4), intent(in) :: tau_Q, N_thermalization, N_measurements,outunit
     real(dp), intent(in) :: beta(-tau_Q:tau_Q)
-    logical, intent(in) :: isbeta
+    logical, intent(in) :: isbeta, readconfig
     real(dp), allocatable :: plq(DIM2)ALLCODIM, top_den(DIM2)ALLCODIM
     integer(i4) :: ib, i_sweeps
     real(dp) :: volume,avrplq, avrtop,err_plq(2), err_top(2)
-
+    character(:), allocatable :: conffile
+    complex(dp), allocatable :: u2(:,:,:,:)ALLCODIM
     allocate(plq(-tau_Q:tau_Q,N_measurements)CODIM)
     allocate(top_den(-tau_Q:tau_Q,N_measurements)CODIM)
 
+
+    allocate(u2(DIM3)CODIM)
+    conffile = "data/configurations/Lx="//&
+               int2str(L(1))//'/Ly='//int2str(L(2))//'/Lz='//int2str(L(3))// &
+               "/T/"//real2str(beta(-tau_Q),1,6) //"/conf_1.bin"
+    call read_configuration(u2,conffile,L)
     volume = product(L)
-    do i_sweeps = 1, N_measurements
-       call select_start(u,start)
+    measurements_loop: do i_sweeps = 1, N_measurements
+       if(readconfig) then
+          u = u2
 #if PARALLEL == 2
-       call sync_sublattice(u)
+          call sync_sublattice(u)
 #endif
-       call thermalization(algorithm,u,beta(-tau_Q),N_thermalization,isbeta)
-       do ib = -tau_Q, tau_Q
+          call thermalization("heatbath",u,beta(-tau_Q),N_thermalization,isbeta)
+       else
+          call select_start(u,start)
+#if PARALLEL == 2
+          call sync_sublattice(u)
+#endif
+          call thermalization(algorithm,u,beta(-tau_Q),N_thermalization,isbeta)
+       end if
+       beta_loop: do ib = -tau_Q, tau_Q
           call sweeps(algorithm,u,beta(ib),isbeta)
           plq(ib,i_sweeps) = plaquette_value(u)
           top_den(ib,i_sweeps) = topological_charge_density(u)
@@ -515,10 +559,18 @@ contains
           call co_sum(plq(ib,i_sweeps),result_image = 1)
           call co_sum(top_den(ib,i_sweeps),result_image = 1)
 #endif
-       end do
-    end do
+       end do beta_loop
+#ifdef PARALLEL
+       if(this_image() == 1) then
+#endif
+          call progress_bar(real(i_sweeps)/N_measurements)
+#ifdef PARALLEL
+       end if
+#endif
+          
+    end do measurements_loop
 
-    do ib = -tau_Q, tau_Q
+    stats_loop: do ib = -tau_Q, tau_Q
 #ifdef PARALLEL
        if(this_image() == 1) then
 #endif
@@ -531,7 +583,114 @@ contains
 #ifdef PARALLEL
        endif
 #endif
-    end do
+    end do stats_loop
   end subroutine out_eq
+
+  subroutine read_configuration(u,filename,L)
+#if defined(PARALLEL)
+    use parameters, only : d
+#endif
+    integer(i4), intent(in) :: L(3)
+#ifdef SERIAL
+    complex(dp), dimension(3,L(1),L(2),L(3)), intent(out) :: u
+    complex(dp), allocatable, dimension(:,:,:,:) :: utotal
+#elif PARALLEL == 1
+    complex(dp), dimension(:,:,:,:), intent(out) :: u[*]
+    complex(dp), allocatable, dimension(:,:,:,:) :: utotal[:]
+#elif PARALLEL == 2
+    complex(dp), dimension(:,0:,0:,0:), intent(out) :: u[*]
+    complex(dp), allocatable, dimension(:,:,:,:) :: utotal[:]
+#endif
+    character(*), intent(in) :: filename
+    integer(i4) :: outunit
+    integer(i4) :: ix,ex,iy,ey,iz,ez, core(3)
+
+#if defined(SERIAL)
+    allocate(utotal(3,L(1),L(2),L(3)))
+#elif defined(PARALLEL)
+    allocate(utotal(3,L(1),L(2),L(3))[*])
+    if(this_image() == 1 )then
+#endif
+       open(newunit = outunit, file = filename, form = "unformatted", access = 'sequential')
+       read(outunit) utotal
+       close(outunit)
+#ifdef PARALLEL
+    end if
+    sync all
+#endif
+       
+    
+#ifdef SERIAL
+    u = utotal
+#elif defined(PARALLEL)
+    core = get_index_array(this_image(),d)
+    ix = Lx*(core(1)-1)+1
+    ex = Lx*core(1)
+    iy = Ly*(core(2)-1)+1
+    ey = Ly*core(2)
+    iz = Lz*(core(3)-1)+1
+    ez = Lz*core(3)
+    
+    u(:,1:Lx,1:Ly,1:Lz)[this_image()] = utotal(:,ix:ex,iy:ey,iz:ez)[1]
+    sync all
+#endif
+    deallocate(utotal)
+  end subroutine read_configuration
+
+  subroutine save_configuration(u,beta,isbeta,L)
+#if defined(PARALLEL)
+    use parameters, only : d
+#endif
+    use number2string
+    use files
+    complex(dp), intent(in) :: u(DIM)CODIM
+    real(dp), intent(in) :: beta
+    logical, intent(in) :: isbeta
+    integer(i4), intent(in) :: L(3)
+    character(:), allocatable :: tmp, path, filename
+    integer(i4) :: outunit, core(3),ix,ex,iy,ey,iz,ez
+    character(100), allocatable :: directories(:)
+    complex(dp), allocatable :: utotal(:,:,:,:)ALLCODIM
+
+
+    allocate(utotal(3,L(1),L(2),L(3))CODIM)
+
+#ifdef SERIAL
+    utotal = u
+#elif defined(PARALLEL)
+    core = get_index_array(this_image(),d)
+    ix = Lx*(core(1)-1)+1
+    ex = Lx*core(1)
+    iy = Ly*(core(2)-1)+1
+    ey = Ly*core(2)
+    iz = Lz*(core(3)-1)+1
+    ez = Lz*core(3)
+
+    utotal(:,ix:ex,iy:ey,iz:ez)[1] = u(:,1:Lx,1:Ly,1:Lz)
+    sync all
+#endif
+
+
+#if defined(PARALLEL)
+    if(this_image()==1) then
+#endif
+       tmp = 'beta'
+       if(.not.isbeta) tmp = 'T'
+       
+       directories = [ character(100) :: 'data','configurations', &
+            'Lx='//int2str(L(1)),'Ly='//int2str(L(2)),'Lz='//int2str(L(3)) , &
+            tmp,trim(real2str(beta,1,6))]
+       call check_directory(directories,path)
+       
+       call numbered_files(path,"conf",".bin",filename) 
+       open(newunit = outunit, file = filename, form = "unformatted", access = 'sequential')
+       write(outunit) utotal
+       close(outunit)
+#if defined(PARALLEL)
+    end if
+#endif
+    deallocate(utotal)
+  end subroutine save_configuration
+
   
 end module dynamics
